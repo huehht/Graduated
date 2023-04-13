@@ -48,7 +48,7 @@ def main():
     # Add the actors to the renderer, set the background and size
     ren.AddActor(cylinderActor)
     ren.SetBackground(colors.GetColor3d("BkgColor"))
-    renWin.SetSize(300, 300)
+    renWin.SetSize(1000, 1000)
     renWin.SetWindowName('CylinderExample')
 
     # This allows the interactor to initalize itself. It has to be

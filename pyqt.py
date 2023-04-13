@@ -1,8 +1,3 @@
-# GUIdemo11.py
-# Demo11 of GUI by PyQt5
-# Copyright 2021 youcans, XUPT
-# Crated：2021-10-20
-
 import sys, math, sip
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -88,7 +83,7 @@ class MyMainWindow(QMainWindow,
         return
 
 
-if __name__ == '__main__':  # youcans, XUPT 2021
+if __name__ == '__main__':
 
     app = QApplication(sys.argv)  # 在 QApplication 方法中使用，创建应用程序对象
     myWin = MyMainWindow()  # 实例化 MyMainWindow 类，创建主窗口
