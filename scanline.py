@@ -1,81 +1,136 @@
-class Point:
-
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+import math
+from figures import Figure
 
 
-class LineSegment:
+class CEdge:  # 边
 
-    def __init__(self, p1, p2):
-        if p1.y < p2.y:
-            self.p1 = p1
-            self.p2 = p2
-        else:
-            self.p1 = p2
-            self.p2 = p1
+    def __init__(self):
+        self.x = 0  # 当前横坐标
+        self.ymax = 0  # 边的上端y坐标，取整数值
+        self.dx = 0  # 斜率倒数
+
+    def __lt___(self, other):
+        if self.x == other.x:
+            return self.dx < other.dx
+        return self.x < other.x
 
 
-def scanline(points):
-    ymin = min(points, key=lambda p: p.y).y
-    ymax = max(points, key=lambda p: p.y).y
+class CScanLine:
 
-    eps = 1e-6
+    def __init__(self, p_polygon: Figure):
+        self.p_polygon = p_polygon  # 多边形figure对象
+        self.InitInfo()
+        self.FillPolygon()  # 读取内部及边界信息
+        self.active_edge_table = []
 
-    edge_table = [[] for _ in range(ymax - ymin + 1)]
+    def InitInfo(self):  # 多边形的初始化信息
+        self.top = -math.inf  # 上端y坐标
+        self.bottom = math.inf  # 下端y坐标
+        self.left = math.inf  # 左端x坐标
+        self.right = -math.inf  # 右端x坐标
 
-    for i in range(len(points)):
-        p1 = points[i]
-        p2 = points[(i + 1) % len(points)]
+        for iter in self.p_polygon.p_point_array:
+            if iter.x() < self.left:
+                self.left = iter.x()
+            if iter.x() > self.right:
+                self.right = iter.x()
+            if iter.y() > self.top:
+                self.top = iter.y()
+            if iter.y() < self.bottom:
+                self.bottom = iter.y()
 
-        if abs(p1.x - p2.x) < eps and abs(p1.y - p2.y) < eps:
-            continue
+        self.width = self.right - self.left + 1
+        self.height = self.top - self.bottom + 1
 
-        if p1.y == p2.y:
-            continue
+    def BuildET(self):  # 建立边表
 
-        if p1.y < p2.y:
-            edge = LineSegment(p1, p2)
-        else:
-            edge = LineSegment(p2, p1)
+        count = len(self.p_polygon.p_point_array)  # 应等于多边形的顶点数
+        self.edge_table = [[]] * (self.top - self.bottom + 1
+                                  )  # 针对每个y值存储多个边（edge）的list
 
-        edge_table[edge.p1.y - ymin].append(edge)
+        for i in range(count):
+            e = CEdge()
 
-    active_edges = []
-    xintersections = []
+            p = self.p_polygon.p_point_array[i]
+            q = self.p_polygon.p_point_array[(i + 1) % count]
 
-    for y in range(ymin, ymax + 1):
-        for edge in edge_table[y - ymin]:
-            active_edges.append(edge)
+            if p.y() == q.y():  # 水平边
+                e.x = p.x()
+                e.ymax = p.y()
+                e.dx = 999999999
+                self.edge_table[p.y() - self.bottom].append(e)
+                e.x = q.x()
+                e.ymax = q.y()
+                e.dx = 999999999
+                self.edge_table[q.y() - self.bottom].append(e)
+            else:
+                if q.y() < p.y():
+                    p, q = q, p
+                e.x = p.x()
+                e.ymax = q.y()
+                if q.y() == p.y():
+                    e.dx = 0
+                else:
+                    e.dx = (q.x() - p.x()) / (q.y() - p.y())
+                self.edge_table[p.y() - self.bottom].append(e)
 
-        active_edges = [e for e in active_edges if e.p2.y > y]
+    def UpdateAET(self, aheight):  # 更新活性边表AET
+        for iter in self.active_edge_table[::-1]:  # 删除不在当前扫描线之内的边
+            if iter.ymax <= aheight:
 
-        active_edges.sort(key=lambda e: e.p1.x)
+                self.active_edge_table.remove(iter)
 
-        for i in range(0, len(active_edges), 2):
-            if i + 1 >= len(active_edges):
-                break
+        for iter in self.active_edge_table:
+            iter.x += iter.dx
 
-            x1 = active_edges[i].p1.x
-            x2 = active_edges[i + 1].p1.x
-            xintersections.append((x1, x2))
+        for iter in self.edge_table[aheight - self.bottom]:
+            self.active_edge_table.append(iter)  # 插入新增边
 
-        for edge in active_edges:
-            edge.p1.x += edge.p1.y / ymax
-            edge.p2.x += edge.p2.y / ymax
+        self.active_edge_table.sort()  # 按照横坐标从小到大排序
 
-    total_area = 0
-    total_x = 0
-    total_y = 0
+    def CalcIntersects(self, aheight):  # 按照横坐标获取扫描线与多边形的交点
+        intersects = []
+        if not self.active_edge_table:  # 活性边表为空
+            return
+        step = 2
+        iters = [
+            self.active_edge_table[i:i + step]
+            for i in range(0, len(self.active_edge_table), step)
+        ]
+        for iter in iters:
+            if abs(iter[0].x - iter[1].x) > 1e-3:
+                intersects.append(iter[0].x)
+                intersects.append(iter[1].x)
 
-    for x1, x2 in xintersections:
-        total_area += ymax
-        centroid_x = (x2**2 - x1**2) / (2 * (x2 - x1))
-        centroid_y = ymax / 2
-        total_x += centroid_x
-        total_y += centroid_y
+        intersects.sort()
+        self.intersects = intersects
 
-    total_x /= total_area
-    total_y /= total_area
+    def FillPolygon(self):  # 填充多边形
+        self.BuildET()
+        self.mat_inside = {}  # 存储像素点是否在多边形内的字典
 
-    return total_area, (total_x, total_y)
+        for i in range(self.bottom, self.top + 1):
+            self.UpdateAET(i)
+            self.CalcIntersects(i)
+
+            status = False  # 初始状态为外部
+            intPts = []  # 存放内部线的两端
+
+        for j in range(len(self.intersects)):
+            if not intPts:
+                intPts.append(int(self.intersects[j]))  # 将x坐标加入列表
+            elif int(self.intersects[j]) == intPts[-1]:
+                intPts.pop()  # 相邻两个重合点相抵消
+            else:
+                intPts.append(int(self.intersects[j]))
+        intPts.append(math.inf)
+
+        index = 0
+        for j in range(self.left - 1, self.right + 1):  # 处理每一个像素点
+            if j == intPts[index]:
+                status = not status
+                index += 1
+            self.mat_inside[(j, i)] = status
+
+    def GetRectArea(self):  # 获取多边形矩形面积
+        return self.width * self.height
