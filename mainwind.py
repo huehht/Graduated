@@ -2,6 +2,7 @@ import sys
 from PyQt5.QtWidgets import QMainWindow, QApplication, QToolBar, QAction, QSlider
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtCore import Qt
+from maincontroller import FigureType, MatterType, Minidraw_controller
 
 
 class Minidraw(QMainWindow):

@@ -1,22 +1,13 @@
 from enum import Enum
 from typing import List
+import math
 import taichi as ti
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
 from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
 from PyQt5.QtWidgets import QWidget, QFileDialog
 
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
-
-n = 80  #grid resolution (cells)
-window_w = 600
-window_h = 600
-dt = 1e-4
-frame_dt = 1e-3
-dx = 1 / n
-inv_dx = 1 / dx
-step = 0  #simulation step
-velocity_ratio = 10  # speed = ratio * velocity line length
-area_particle_ratio = 0.015  #num of particles = ratio * area
+from scanline import CScanLine
 
 
 class FigureType(Enum):
@@ -56,6 +47,10 @@ class Simulation:
                                shape=(self.n_grid,
                                       self.n_grid))  # grid node mass
         self.particles = []
+        self.area_particle_ratio = 0.015
+        # num of particles = ratio * area
+        self.gravity = ti.Vector.field(2, dtype=float, shape=())
+        self.gravity[None] = [0, -1]
 
     class particle:
 
@@ -82,67 +77,66 @@ class Simulation:
             self.grid_v[i, j] = [0, 0]
             self.grid_m[i, j] = 0
         for p in self.particles:  # Particle state update and scatter to grid (P2G)
-            base = (p.x * inv_dx - 0.5).cast(int)
-            fx = p.x * inv_dx - base.cast(float)
+            base = (p.x * self.inv_dx - 0.5).cast(int)
+            fx = p.x * self.inv_dx - base.cast(float)
             # Quadratic kernels  [http://mpm.graphics   Eqn. 123, with x=fx, fx-1,fx-2]
             w = [0.5 * (1.5 - fx)**2, 0.75 - (fx - 1)**2, 0.5 * (fx - 0.5)**2]
             # deformation gradient update
-            p.F = (ti.Matrix.identity(float, 2) + dt * p.C) @ p.F
+            p.F = (ti.Matrix.identity(float, 2) + self.dt * p.C) @ p.F
             # Hardening coefficient: snow gets harder when compressed
             h = ti.max(0.1, ti.min(5, ti.exp(10 * (1.0 - p.Jp))))
-            if material[p] == 1:  # jelly, make it softer
+            if p.material == 1:  # jelly, make it softer
                 h = 0.3
             mu, la = self.mu_0 * h, self.lambda_0 * h
-            if material[p] == 0:  # liquid
+            if p.material == 0:  # liquid
                 mu = 0.0
             U, sig, V = ti.svd(p.F)
             J = 1.0
             for d in ti.static(range(2)):
                 new_sig = sig[d, d]
-                if material[p] == 2:  # Snow
+                if p.material == 2:  # Snow
                     new_sig = min(max(sig[d, d], 1 - 2.5e-2),
                                   1 + 4.5e-3)  # Plasticity
                 p.Jp *= sig[d, d] / new_sig
                 sig[d, d] = new_sig
                 J *= new_sig
-            if material[p] == 0:
+            if p.material == 0:
                 # Reset deformation gradient to avoid numerical instability
                 p.F = ti.Matrix.identity(float, 2) * ti.sqrt(J)
-            elif material[p] == 2:
+            elif p.material == 2:
                 # Reconstruct elastic deformation gradient after plasticity
                 p.F = U @ sig @ V.transpose()
             stress = 2 * mu * (p.F - U @ V.transpose()) @ p.F.transpose(
             ) + ti.Matrix.identity(float, 2) * la * J * (J - 1)
-            stress = (-dt * self.p_vol * 4 * inv_dx * inv_dx) * stress
+            stress = (-self.dt * self.p_vol * 4 * self.inv_dx *
+                      self.inv_dx) * stress
             affine = stress + self.p_mass * p.C
             for i, j in ti.static(ti.ndrange(3, 3)):
                 # Loop over 3x3 grid node neighborhood
                 offset = ti.Vector([i, j])
-                dpos = (offset.cast(float) - fx) * dx
+                dpos = (offset.cast(float) - fx) * self.dx
                 weight = w[i][0] * w[j][1]
                 self.grid_v[base +
-                            offset] += self.weight * (self.p_mass * v[p] +
+                            offset] += self.weight * (self.p_mass * p.v +
                                                       affine @ dpos)
                 self.grid_m[base + offset] += weight * self.p_mass
-        for i, j in grid_m:
-            if grid_m[i, j] > 0:  # No need for epsilon here
+        for i, j in self.grid_m:
+            if self.grid_m[i, j] > 0:  # No need for epsilon here
                 # Momentum to velocity
-                grid_v[i, j] = (1 / grid_m[i, j]) * grid_v[i, j]
-                grid_v[i, j] += dt * gravity[None] * 30  # gravity
-                dist = attractor_pos[None] - dx * ti.Vector([i, j])
-                grid_v[i, j] += \
-                    dist / (0.01 + dist.norm()) * attractor_strength[None] * dt * 100
-                if i < 3 and grid_v[i, j][0] < 0:
-                    grid_v[i, j][0] = 0  # Boundary conditions
-                if i > n_grid - 3 and grid_v[i, j][0] > 0:
-                    grid_v[i, j][0] = 0
-                if j < 3 and grid_v[i, j][1] < 0:
-                    grid_v[i, j][1] = 0
-                if j > n_grid - 3 and grid_v[i, j][1] > 0:
-                    grid_v[i, j][1] = 0
-        for p in x:  # grid to particle (G2P)
-            base = (x[p] * inv_dx - 0.5).cast(int)
-            fx = x[p] * inv_dx - base.cast(float)
+                self.grid_v[i, j] = (1 / self.grid_m[i, j]) * self.grid_v[i, j]
+                self.grid_v[i,
+                            j] += self.dt * self.gravity[None] * 30  # gravity
+                if i < 3 and self.grid_v[i, j][0] < 0:
+                    self.grid_v[i, j][0] = 0  # Boundary conditions
+                if i > self.n_grid - 3 and self.grid_v[i, j][0] > 0:
+                    self.grid_v[i, j][0] = 0
+                if j < 3 and self.grid_v[i, j][1] < 0:
+                    self.grid_v[i, j][1] = 0
+                if j > self.n_grid - 3 and self.grid_v[i, j][1] > 0:
+                    self.grid_v[i, j][1] = 0
+        for p in self.particles:  # grid to particle (G2P)
+            base = (p.x * self.inv_dx - 0.5).cast(int)
+            fx = p.x * self.inv_dx - base.cast(float)
             w = [
                 0.5 * (1.5 - fx)**2, 0.75 - (fx - 1.0)**2, 0.5 * (fx - 0.5)**2
             ]
@@ -151,12 +145,80 @@ class Simulation:
             for i, j in ti.static(ti.ndrange(3, 3)):
                 # loop over 3x3 grid node neighborhood
                 dpos = ti.Vector([i, j]).cast(float) - fx
-                g_v = grid_v[base + ti.Vector([i, j])]
+                g_v = self.grid_v[base + ti.Vector([i, j])]
                 weight = w[i][0] * w[j][1]
                 new_v += weight * g_v
-                new_C += 4 * inv_dx * weight * g_v.outer_product(dpos)
-            v[p], C[p] = new_v, new_C
-            x[p] += dt * v[p]  # advection
+                new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
+            p.v, p.C = new_v, new_C
+            p.x += self.dt * p.v  # advection
+
+
+# Add circle object in scene
+
+    @ti.kernel
+    def add_object_circle(self,
+                          center,
+                          radius,
+                          color,
+                          num=500,
+                          t=MatterType.Solid,
+                          velocity=(0.0, 0.0)):
+        i = 0
+        area = math.pi * (radius * radius) * self.window_w * self.window_h
+        num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
+        while i < num:
+            pos = [((ti.random() * 2) - 1) * radius,
+                   ((ti.random() * 2) - 1) * radius]
+            if pos[0] * pos[0] + pos[1] * pos[1] < radius * radius:
+                self.particles.append(
+                    self.Particle(x=[pos[0] + center[0], pos[1] + center[1]],
+                                  v=velocity,
+                                  colour=color,
+                                  material=t))
+                i += 1
+
+    # Add rectangle object in scene
+    def add_object_rectangle(self,
+                             v1,
+                             v2,
+                             color,
+                             num=500,
+                             t=MatterType.Solid,
+                             velocity=(0.0, 0.0)):
+        box_min = [min(v1[0], v2[0]), min(v1[1], v2[1])]
+        box_max = [max(v1[0], v2[0]), max(v1[1], v2[1])]
+        i = 0
+        area = (box_max[0] - box_min[0]) * self.window_w * (
+            box_max[1] - box_min[1]) * self.window_h
+        num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
+        while i < num:
+            pos = [
+                ti.random() * (box_max[0] - box_min[0]) + box_min[0],
+                ti.random() * (box_max[1] - box_min[1]) + box_min[1]
+            ]
+            self.particles.append(self.Particle(pos, velocity, color, t))
+            i += 1
+
+    # Add polygon & free-hand object in scene
+    def add_object_polygon(self,
+                           polygon,
+                           color,
+                           num=500,
+                           t='Snow',
+                           velocity=(0.0, 0.0)):
+        scanline = CScanLine(polygon)  # use scanline method here
+        i = 0
+        area = scanline.GetRectArea()
+        num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
+        while i < num:
+            pos = [ti.random(), ti.random()]
+            x0 = pos[0] * self.window_w
+            y0 = pos[1] * self.window_h
+            if y0 <= scanline.top and y0 >= scanline.bottom and x0 >= scanline.left and x0 <= scanline.right:
+                if scanline.mat_inside.get((int(x0), int(y0))):
+                    self.particles.append(
+                        self.Particle(pos, velocity, color, t))
+                    i += 1
 
 
 class Minidraw_controller(QWidget):
@@ -181,6 +243,7 @@ class Minidraw_controller(QWidget):
 
         self.is_drawing_polygon = False
         self.is_simulating = False
+        self.taichi_simulation = Simulation()
 
     def point_in_polygon(points, pt_x, pt_y):
         nums = len(points)
@@ -286,7 +349,7 @@ class Minidraw_controller(QWidget):
     def add_objects(self):
         for i in range(len(self.figure_array)):
             p_figure = self.figure_array[i]
-            has_init_velocity = False
+            # has_init_velocity = False
 
             # 1. wrong type, just ignore it.
             if not isinstance(p_figure,
@@ -297,7 +360,8 @@ class Minidraw_controller(QWidget):
             p_next_figure = self.figure_array[(i + 1) % len(self.figure_array)]
             if isinstance(p_next_figure,
                           Line) and p_next_figure.get_color() == Qt.red:
-                has_init_velocity = True
+                # has_init_velocity = True
+                pass
 
             ptype = None
 
@@ -326,15 +390,10 @@ class Minidraw_controller(QWidget):
                 y0 = float(p_points[0].y()) / self.window_h
                 x1 = float(p_points[1].x()) / self.window_w
                 y1 = float(p_points[1].y()) / self.window_h
-                if has_init_velocity:
-                    velocity_vector = p_next_figure.get_line_vector()
-                    taichi_simulation.add_object_rectangle(
-                        Vec(x0, y0), Vec(x1, y1), figure_color, 800, ptype,
-                        Vec(velocity_vector.x() / velocity_ratio,
-                            velocity_vector.y() / velocity_ratio))
-                else:
-                    taichi_simulation.add_object_rectangle(
-                        Vec(x0, y0), Vec(x1, y1), figure_color, 800, ptype)
+
+                self.taichi_simulation.add_object_rectangle([x0, y0], [x1, y1],
+                                                            figure_color, 800,
+                                                            ptype)
 
             # if figure type is polygon, triangle or free-hand
             elif isinstance(p_figure, Polygon) or isinstance(
@@ -344,15 +403,8 @@ class Minidraw_controller(QWidget):
                 x1 = float(p_points[1].x()) / self.window_w
                 y1 = float(p_points[1].y()) / self.window_h
 
-                if has_init_velocity:
-                    velocity_vector = p_next_figure.get_line_vector()
-                    taichi_simulation.add_object_polygon(
-                        p_figure, figure_color, 800, ptype,
-                        Vec(velocity_vector.x() / velocity_ratio,
-                            velocity_vector.y() / velocity_ratio))
-                else:
-                    taichi_simulation.add_object_polygon(
-                        p_figure, figure_color, 800, ptype)
+                self.taichi_simulation.add_object_polygon(
+                    p_figure, figure_color, 800, ptype)
 
             # if figure type is circle
             elif isinstance(p_figure, Circle):
@@ -362,17 +414,12 @@ class Minidraw_controller(QWidget):
                 y0 = float(p_points[0].y()) / self.window_h
                 x1 = float(p_points[1].x()) / self.window_w
                 y1 = float(p_points[1].y()) / self.window_h
-                if has_init_velocity:
-                    velocity_vector = p_next_figure.get_line_vector()
-                    taichi_simulation.add_object_circle(
-                        Vec((x0 + x1) / 2, (y0 + y1) / 2), (x1 - x0) / 2,
-                        figure_color, 800, ptype,
-                        Vec(velocity_vector.x() / velocity_ratio,
-                            velocity_vector.y() / velocity_ratio))
-                else:
-                    taichi_simulation.add_object_circle(
-                        Vec((x0 + x1) / 2, (y0 + y1) / 2), (x1 - x0) / 2,
-                        figure_color, 800, ptype)
+
+                self.taichi_simulation.add_object_circle([(x0 + x1) / 2,
+                                                          (y0 + y1) / 2],
+                                                         (x1 - x0) / 2,
+                                                         figure_color, 800,
+                                                         ptype)
 
         # insert figure_array to the end of figure_array_backup, NOTE: no need to clear figure_Array_backup here
         self.figure_array_backup.extend(self.figure_array)
@@ -380,6 +427,8 @@ class Minidraw_controller(QWidget):
         # the end, clear figure_array
         self.figure_array.clear()
 
+    def del_objects(self):
+        
     def simulate(self):
         # 1. create objects and add them to particles
         self.add_objects()
@@ -390,7 +439,7 @@ class Minidraw_controller(QWidget):
             QCoreApplication.processEvents()  # response to new message
             if not self.is_simulating:
                 break
-            taichi_simulation.simulateOnce()
+            self.taichi_simulation.substep()
 
             # 3. update frame, draw the particles in the window
             if step % int(self.frame_dt / self.dt) == 0:
@@ -400,7 +449,7 @@ class Minidraw_controller(QWidget):
     def reset_simulation(self):
         self.is_simulating = False
         self.figure_array.clear()
-        taichi_simulation.particles.clear()
+        self.taichi_simulation.particles.clear()
 
         self.figure_array = self.figure_array_backup
         self.figure_array_backup.clear()  # clear backup figure array here
@@ -410,7 +459,7 @@ class Minidraw_controller(QWidget):
         self.is_simulating = False
         self.figure_array.clear()
         self.figure_array_backup.clear()
-        taichi_simulation.particles.clear()
+        self.taichi_simulation.particles.clear()
         self.update()
 
     def undo(self):
