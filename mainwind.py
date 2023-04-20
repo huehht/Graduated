@@ -6,17 +6,22 @@ from PyQt5.QtCore import Qt
 
 class Minidraw(QMainWindow):
 
-    def __init__(self):
-        super().init()
-        # initialize controller
+    def __init__(self, parent=None):
+        super(Minidraw, self).__init__(parent)
+        self.ui = Ui_Minidraw()
+        self.ui.setupUi(self)
         self.controller = Minidraw_controller()
         self.setCentralWidget(self.controller)
         self.setWindowTitle("Qtaichi")  # add title
         self.setWindowIcon(QIcon(":/resources/icon.png"))  # add icon
+
         self.create_toolbar()
         self.create_figure_toolbar()
         self.create_simulation_toolbar()
         self.create_snow_type_toolbar()
+
+    def __del__(self):
+        del self.ui
 
     def set_line_width(self, width):
         self.controller.current_line_width = width
@@ -165,5 +170,96 @@ class Minidraw(QMainWindow):
 
     # Create simulation toolbar
     def create_simulation_toolbar(self):
-        self.simulation_toolbar = self.addToolBar("simulation toolbar")
-        action_simulation
+        self.Simulation_toolbar = self.addToolBar("simulation toolbar")
+        action_simulate = QAction(QIcon(":/resources/simulate.jpg"),
+                                  "start simulation", self)
+        action_simulate.triggered.connect(self.start_simulation)
+        self.Simulation_toolbar.addAction(action_simulate)
+
+        action_pause_simul = QAction(QIcon(":/resources/pause.png"),
+                                     "pause simulation", self)
+        action_pause_simul.triggered.connect(self.pause_simulation)
+        self.Simulation_toolbar.addAction(action_pause_simul)
+
+        action_save_simul = QAction(QIcon(":/resources/save.png"),
+                                    "save current scene", self)
+        action_save_simul.triggered.connect(self.save_scene)
+        self.Simulation_toolbar.addAction(action_save_simul)
+
+        action_reset_simul = QAction(QIcon(":/resources/reset.png"),
+                                     "reset simulation", self)
+        action_reset_simul.triggered.connect(self.reset_simulation)
+        self.Simulation_toolbar.addAction(action_reset_simul)
+
+        action_clear_simul = QAction(QIcon(":/resources/clear.png"),
+                                     "clear simulation", self)
+        action_clear_simul.triggered.connect(self.clear_simulation)
+        self.Simulation_toolbar.addAction(action_clear_simul)
+
+    def create_snow_type_toolbar(self):
+        self.SnowType_toolbar = self.addToolBar("snow type toolbar")
+        choose_snow_type = [None] * 6
+
+        choose_snow_type[0] = QAction(QIcon(":/resources/num1.jpg"),
+                                      "Lower Hardening", self)
+        choose_snow_type[0].triggered.connect(self.set_snow_type_1)
+        self.SnowType_toolbar.addAction(choose_snow_type[0])
+
+        choose_snow_type[1] = QAction(QIcon(":/resources/num2.jpg"),
+                                      "Lower Young's", self)
+        choose_snow_type[1].triggered.connect(self.set_snow_type_2)
+        self.SnowType_toolbar.addAction(choose_snow_type[1])
+
+        choose_snow_type[2] = QAction(QIcon(":/resources/num3.jpg"),
+                                      "Lower Critical Compression", self)
+        choose_snow_type[2].triggered.connect(self.set_snow_type_3)
+        self.SnowType_toolbar.addAction(choose_snow_type[2])
+
+        choose_snow_type[3] = QAction(QIcon(":/resources/num4.jpg"),
+                                      "Reference", self)
+        choose_snow_type[3].triggered.connect(self.set_snow_type_4)
+        self.SnowType_toolbar.addAction(choose_snow_type[3])
+
+        choose_snow_type[4] = QAction(QIcon(":/resources/num5.jpg"),
+                                      "Lower Critical Compression & Stretch",
+                                      self)
+        choose_snow_type[4].triggered.connect(self.set_snow_type_5)
+        self.SnowType_toolbar.addAction(choose_snow_type[4])
+
+        choose_snow_type[5] = QAction(QIcon(":/resources/num6.jpg"),
+                                      "Lower Critical Stretch", self)
+        choose_snow_type[5].triggered.connect(self.set_snow_type_6)
+        self.SnowType_toolbar.addAction(choose_snow_type[5])
+
+    def set_snow_type_1(self):
+        self.controller.set_snow_type(1)
+
+    def set_snow_type_2(self):
+        self.controller.set_snow_type(2)
+
+    def set_snow_type_3(self):
+        self.controller.set_snow_type(3)
+
+    def set_snow_type_4(self):
+        self.controller.set_snow_type(4)
+
+    def set_snow_type_5(self):
+        self.controller.set_snow_type(5)
+
+    def set_snow_type_6(self):
+        self.controller.set_snow_type(6)
+
+    def start_simulation(self):
+        self.controller.is_simulating = True
+        self.controller.simulate()
+
+    def pause_simulation(self):
+        self.controller.is_simulating = False
+
+    def reset_simulation(self):
+        self.controller.is_simulating = False
+        self.controller.reset_simulation()
+
+    def clear_simulation(self):
+        self.controller.is_simulating = False
+        self.controller.clear_simulation()

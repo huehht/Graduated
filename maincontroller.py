@@ -1,11 +1,22 @@
 from enum import Enum
 from typing import List
-
+import taichi as ti
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
 from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
 from PyQt5.QtWidgets import QWidget, QFileDialog
 
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
+
+n = 80  #grid resolution (cells)
+window_w = 600
+window_h = 600
+dt = 1e-4
+frame_dt = 1e-3
+dx = 1 / n
+inv_dx = 1 / dx
+step = 0  #simulation step
+velocity_ratio = 10  # speed = ratio * velocity line length
+area_particle_ratio = 0.015  #num of particles = ratio * area
 
 
 class FigureType(Enum):
@@ -23,6 +34,43 @@ class MatterType(Enum):
     Jelly = 1
     Snow = 2
     Solid = 3
+
+
+@ti.data_oriented
+class Simulation:
+
+    def __init__(self) -> None:
+        quality = 1  # Use a larger value for higher-res simulations
+        self.n_grid = 128 * quality
+        self.dx, self.inv_dx = 1 / self.n_grid, float(self.n_grid)
+        self.dt = 1e-4 / quality
+        self.p_vol, self.p_rho = (self.dx * 0.5)**2, 1
+        self.p_mass = self.p_vol * self.p_rho
+        E, nu = 5e3, 0.2  # Young's modulus and Poisson's ratio
+        self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+            (1 + nu) * (1 - 2 * nu))  # Lame parameters
+
+    class particle:
+
+        def __init__(self) -> None:
+
+            x = ti.Vector.field(2, dtype=float, shape=n_particles)  # position
+            v = ti.Vector.field(2, dtype=float, shape=n_particles)  # velocity
+            C = ti.Matrix.field(2, 2, dtype=float,
+                                shape=n_particles)  # affine velocity field
+            F = ti.Matrix.field(2, 2, dtype=float,
+                                shape=n_particles)  # deformation gradient
+            material = ti.field(dtype=int, shape=n_particles)  # material id
+            Jp = ti.field(dtype=float,
+                          shape=n_particles)  # plastic deformation
+            grid_v = ti.Vector.field(
+                2, dtype=float,
+                shape=(n_grid, n_grid))  # grid node momentum/velocity
+            grid_m = ti.field(dtype=float,
+                              shape=(n_grid, n_grid))  # grid node mass
+            gravity = ti.Vector.field(2, dtype=float, shape=())
+            attractor_strength = ti.field(dtype=float, shape=())
+            attractor_pos = ti.Vector.field(2, dtype=float, shape=())
 
 
 class Minidraw_controller(QWidget):
@@ -47,6 +95,18 @@ class Minidraw_controller(QWidget):
 
         self.is_drawing_polygon = False
         self.is_simulating = False
+
+    def point_in_polygon(points, pt_x, pt_y):
+        nums = len(points)
+        count = 0
+        for i in range(nums):
+            x1, y1 = points[i]
+            x2, y2 = points[(i + 1) % nums]
+            if min(y1, y2) < pt_y <= max(y1, y2):
+                x = (pt_y - y1) * (x2 - x1) / (y2 - y1) + x1
+                if x <= pt_x:
+                    count += 1
+        return count % 2 == 1
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
@@ -275,10 +335,6 @@ class Minidraw_controller(QWidget):
     def clearFigure(self):
         self.figure_array.clear()
         self.update()
-
-    def set_snow_type(self, type):
-        if 1 <= type <= 6:
-            self.snow_type = type
 
     def save_scene(self):
         pix = self.grab()  # get screen shot
