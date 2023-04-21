@@ -18,8 +18,8 @@ class FigureType(Enum):
     Circle = 4
     Ellipse = 5
     Polygon = 6
-    Edit = 7
-    Del = 8
+    # Edit = 7
+    # Del = 8
 
 
 class MatterType(Enum):
@@ -240,8 +240,8 @@ class Minidraw_controller(QWidget):
 
         self.figure_array = []
         self.figure_array_backup = []
-        self.del_figure=[]
-        self.status_stack=[]
+        self.del_figure = []
+        self.status_stack = []
 
         self.p_current_figure = None
         self.isAdding = True
@@ -252,29 +252,42 @@ class Minidraw_controller(QWidget):
         self.is_simulating = False
         self.taichi_simulation = Simulation()
 
-    def point_in_polygon(points, point: QPoint):
+    def point_in_polygon(figure, point: QPoint):
         pt_x = point.x()
         pt_y = point.y()
-        nums = len(points)
-        count = 0
-        for i in range(nums):
-            x1, y1 = points[i]
-            x2, y2 = points[(i + 1) % nums]
-            if min(y1, y2) < pt_y <= max(y1, y2):
-                x = (pt_y - y1) * (x2 - x1) / (y2 - y1) + x1
-                if x <= pt_x:
-                    count += 1
-        return count % 2 == 1
+        if isinstance(figure, Rect):
+            return pt_x <= max(figure.start_x, figure.end_x) and pt_x >= min(
+                figure.start_x, figure.end_x) and pt_y <= max(
+                    figure.start_y, figure.end_y) and pt_y >= min(
+                        figure.start_y, figure.end_y)
+        elif isinstance(figure, Circle):
+            radius = abs(figure.start_x - figure.end_x)
+            center_x = (figure.start_x + figure.end_x) / 2
+            center_y = (figure.start_y + figure.end_y) / 2
+            return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
+        else:
+            points = figure.p_point_array
+            nums = len(points)
+            count = 0
+            for i in range(nums):
+                x1, y1 = points[i].x(), points[i].y()
+                x2, y2 = points[(i + 1) % nums].x(), points[(i + 1) % nums].y()
+                if min(y1, y2) < pt_y <= max(y1, y2):
+                    x = (pt_y - y1) * (x2 - x1) / (y2 - y1) + x1
+                    if x <= pt_x:
+                        count += 1
+            return count % 2 == 1
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
             self.current_point = event.pos()
             if self.isEdit:
-                ind=self.edit_objects()
-                self.status_stack.append(['e',ind])
+                ind = self.edit_objects_getind()
+                self.status_stack.append(['e', ind])
             elif self.isDel:
-                ind=self.del_objects()
-                self.status_stack.append(['d',ind])
+                # ind=self.del_objects()
+                # self.status_stack.append(['d',ind])
+                pass
             elif not self.p_current_figure and self.isAdding:
                 self.status_stack.append(['a'])
                 if self.current_figure_type == FigureType.Line:
@@ -304,16 +317,29 @@ class Minidraw_controller(QWidget):
                 self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        if self.draw_status:
+
+        if self.isEdit:
+            self.edit_objects(self.current_point, event.pos())
+            self.current_point = event.pos()
+        elif self.draw_status:
             self.current_point = event.pos()
             self.p_current_figure.draw_dynamic(self.get_painter(),
                                                self.current_point)
-            self.update()
+        self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        self.current_point = event.pos()
         self.draw_status = False
-        if self.p_current_figure:
+        if self.isDel:
+            ind = self.del_objects()
+            self.status_stack.append(['d', ind])
+            self.isDel = False
+        elif self.isEdit:
+            ind = self.edit_objects(self.current_point, event.pos())
+            self.current_point = event.pos()
+            self.del_figure.append(self.figure_array.pop(ind))
+            self.isEdit = False
+        elif self.p_current_figure and self.isAdding:
+            self.current_point = event.pos()
             self.p_current_figure.set_width(self.current_line_width)
             self.p_current_figure.set_color(self.current_line_color)
             self.p_current_figure.add_point(self.current_point)
@@ -446,13 +472,23 @@ class Minidraw_controller(QWidget):
     def del_objects(self):
         for figure in self.figure_array[::-1]:
             if self.point_in_polygon(figure, self.current_point):
-                ind=self.figure_array.index(figure)
+                ind = self.figure_array.index(figure)
+                self.del_figure.append(figure)
                 self.figure_array.remove(figure)
-                self.update()
                 return ind
-            
-    def edit_objects(self):
-        
+
+    def edit_objects_getind(self):
+        for figure in self.figure_array[::-1]:
+            if self.point_in_polygon(figure, self.current_point):
+                ind = self.figure_array.index(figure)
+                return ind
+
+    def edit_objects(self, point_old: QPoint, point_new: QPoint):
+        self.figure_array.append(self.figure_array[self.status_stack[-1][1]])
+        for points in self.figure_array[-1].p_point_array:
+            points.setX(points.x() + point_new.x() - point_old.x())
+            points.setY(points.y() + point_new.y() - point_old.y())
+            return self.status_stack[-1][1]
 
     def simulate(self):
         # 1. create objects and add them to particles
@@ -490,13 +526,13 @@ class Minidraw_controller(QWidget):
         self.update()
 
     def undo(self):
-        status=self.status_stack.pop()
-        if status[0]=='d':
-            self.figure_array.insert(status[1],self.del_figure.pop())
-        elif len(self.figure_array) > 0 and status[0]=='a':
+        status = self.status_stack.pop()
+        if status[0] == 'd':
+            self.figure_array.insert(status[1], self.del_figure.pop())
+        elif len(self.figure_array) > 0 and status[0] == 'a':
             self.figure_array.pop()
-        elif len(self.figure_array) > 0 and status[0]=='e':
-            self.figure_array.insert(status[1],self.del_figure.pop())
+        elif len(self.figure_array) > 0 and status[0] == 'e':
+            self.figure_array.insert(status[1], self.del_figure.pop())
             self.figure_array.pop()
         self.update()
 

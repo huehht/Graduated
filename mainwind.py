@@ -33,51 +33,66 @@ class Minidraw(QMainWindow):
     # Set line colors
     def set_line_color_red(self):
         self.controller.current_line_color = Qt.red
-        self.controller.current_figure_type = "k_line"
+        self.controller.current_figure_type = FigureType.Line
 
     def set_line_color_blue(self):
         self.controller.current_line_color = QColor(0x87CEFA)
-        self.controller.current_figure_type = "k_curve"
+        self.controller.current_figure_type = FigureType.Curve
 
     def set_line_color_green(self):
         self.controller.current_line_color = Qt.green
 
     def set_line_color_orange(self):
         self.controller.current_line_color = QColor(0xED553B)
-        self.controller.current_figure_type = "k_curve"
+        self.controller.current_figure_type = FigureType.Curve
 
     def set_line_color_black(self):
         self.controller.current_line_color = Qt.black
-        self.controller.current_figure_type = "k_curve"
+        self.controller.current_figure_type = FigureType.Curve
 
     def set_line_color_yellow(self):
         self.controller.current_line_color = Qt.yellow
 
     def set_line_color_white(self):
         self.controller.current_line_color = Qt.white
-        self.controller.current_figure_type = "k_curve"
+        self.controller.current_figure_type = FigureType.Curve
 
     # Set figure type
     def set_figure_tool_line(self):
-        self.controller.current_figure_type = "k_line"
+        self.controller.current_figure_type = FigureType.Line
+        self.controller.isAdding = True
 
     def set_figure_tool_rect(self):
-        self.controller.current_figure_type = "k_rect"
+        self.controller.current_figure_type = FigureType.Rectangle
+        self.controller.isAdding = True
 
     def set_figure_tool_circle(self):
-        self.controller.current_figure_type = "k_circle"
+        self.controller.current_figure_type = FigureType.Circle
+        self.controller.isAdding = True
 
     def set_figure_tool_curve(self):
-        self.controller.current_figure_type = "k_curve"
+        self.controller.current_figure_type = FigureType.Curve
+        self.controller.isAdding = True
 
     def set_figure_tool_ellipse(self):
-        self.controller.current_figure_type = "k_ellipse"
+        self.controller.current_figure_type = FigureType.Ellipse
+        self.controller.isAdding = True
 
     def set_figure_tool_tri(self):
-        self.controller.current_figure_type = "k_triangle"
+        self.controller.current_figure_type = FigureType.Triangle
+        self.controller.isAdding = True
 
     def set_figure_tool_poly(self):
-        self.controller.current_figure_type = "k_polygon"
+        self.controller.current_figure_type = FigureType.Polygon
+        self.controller.isAdding = True
+
+    def set_figure_tool_del(self):
+        self.controller.isAdding = False
+        self.controller.isDel = True
+
+    def set_figure_tool_edit(self):
+        self.controller.isAdding = False
+        self.controller.isEdit = True
 
     # Create toolbar
     def create_toolbar(self):
@@ -150,6 +165,18 @@ class Minidraw(QMainWindow):
                                   "poly tool", self)
         choose_poly_act.triggered.connect(self.set_figure_tool_poly)
         self.figure_toolbar.addAction(choose_poly_act)
+
+        # button for delete
+        action_del = QAction(QIcon(":/resources/del.png"), "delete element",
+                             self)
+        action_del.triggered.connect(self.set_figure_tool_del)
+        self.figure_toolbar.addAction(action_del)
+
+        # button for edit
+        action_edit = QAction(QIcon(":/resources/edit.png"),
+                              "edit element's position", self)
+        action_edit.triggered.connect(self.set_figure_tool_edit)
+        self.figure_toolbar.addAction(action_edit)
 
         # button for undo
         action_undo = QAction(QIcon(":/resources/undo.png"), "undo painting",

@@ -87,17 +87,17 @@ class Rect(Polygon):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        end_x = int(current_point.rx())
-        end_y = int(current_point.ry())
-        paint.drawRect(self.start_x, self.start_y, end_x - self.start_x,
-                       end_y - self.start_y)
+        self.end_x = int(current_point.rx())
+        self.end_y = int(current_point.ry())
+        paint.drawRect(self.start_x, self.start_y, self.end_x - self.start_x,
+                       self.end_y - self.start_y)
 
     def draw(self, paint: QPainter):
-        end_x = int(self.p_point_array[1].rx())
-        end_y = int(self.p_point_array[1].ry())
+        self.end_x = int(self.p_point_array[1].rx())
+        self.end_y = int(self.p_point_array[1].ry())
 
-        paint.drawRect(self.start_x, self.start_y, end_x - self.start_x,
-                       end_y - self.start_y)
+        paint.drawRect(self.start_x, self.start_y, self.end_x - self.start_x,
+                       self.end_y - self.start_y)
 
 
 class Triangle(Polygon):
@@ -107,13 +107,13 @@ class Triangle(Polygon):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        end_x = int(current_point.rx())
-        end_y = int(current_point.ry())
+        self.end_x = int(current_point.rx())
+        self.end_y = int(current_point.ry())
 
         points = [
             QPointF(self.start_x, self.start_y),  # left_botton_point
-            QPointF((self.start_x + end_x) / 2, end_y),  # top_point
-            QPointF(end_x, self.start_y),  # right_bottom_point
+            QPointF((self.start_x + self.end_x) / 2, self.end_y),  # top_point
+            QPointF(self.end_x, self.start_y),  # right_bottom_point
         ]
         paint.drawPolygon(points)
 
@@ -179,15 +179,15 @@ class Circle(Ellipse):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        end_x = int(current_point.rx())
+        self.end_x = int(current_point.rx())
 
-        rectangle = QRect(self.start_x, self.start_y, end_x - self.start_x,
-                          end_x - self.start_x)
+        rectangle = QRect(self.start_x, self.start_y,
+                          self.end_x - self.start_x, self.end_x - self.start_x)
         paint.drawEllipse(rectangle)
 
     def draw(self, paint: QPainter):
-        end_x = int(self.p_point_array[1].rx())
+        self.end_x = int(self.p_point_array[1].rx())
 
-        rectangle = QRect(self.start_x, self.start_y, end_x - self.start_x,
-                          end_x - self.start_x)
+        rectangle = QRect(self.start_x, self.start_y,
+                          self.end_x - self.start_x, self.end_x - self.start_x)
         paint.drawEllipse(rectangle)
