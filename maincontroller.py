@@ -18,6 +18,8 @@ class FigureType(Enum):
     Circle = 4
     Ellipse = 5
     Polygon = 6
+    Edit = 7
+    Del = 8
 
 
 class MatterType(Enum):
@@ -238,14 +240,21 @@ class Minidraw_controller(QWidget):
 
         self.figure_array = []
         self.figure_array_backup = []
+        self.del_figure=[]
+        self.status_stack=[]
 
         self.p_current_figure = None
+        self.isAdding = True
+        self.isEdit = False
+        self.isDel = False
 
         self.is_drawing_polygon = False
         self.is_simulating = False
         self.taichi_simulation = Simulation()
 
-    def point_in_polygon(points, pt_x, pt_y):
+    def point_in_polygon(points, point: QPoint):
+        pt_x = point.x()
+        pt_y = point.y()
         nums = len(points)
         count = 0
         for i in range(nums):
@@ -260,7 +269,14 @@ class Minidraw_controller(QWidget):
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
             self.current_point = event.pos()
-            if not self.p_current_figure:
+            if self.isEdit:
+                ind=self.edit_objects()
+                self.status_stack.append(['e',ind])
+            elif self.isDel:
+                ind=self.del_objects()
+                self.status_stack.append(['d',ind])
+            elif not self.p_current_figure and self.isAdding:
+                self.status_stack.append(['a'])
                 if self.current_figure_type == FigureType.Line:
                     self.p_current_figure = Line(self.current_point,
                                                  self.current_line_width,
@@ -333,8 +349,8 @@ class Minidraw_controller(QWidget):
             figure.draw(painter)
 
         if self.current_figure_type != "k_polygon":
-            if self.is_drawing_ploygon:
-                self.is_drawing_ploygon = False
+            if self.is_drawing_polygon:
+                self.is_drawing_polygon = False
                 if self.p_current_figure is not None:
                     self.figure_array.append(self.p_current_figure)
                     self.p_current_figure = None
@@ -428,7 +444,16 @@ class Minidraw_controller(QWidget):
         self.figure_array.clear()
 
     def del_objects(self):
+        for figure in self.figure_array[::-1]:
+            if self.point_in_polygon(figure, self.current_point):
+                ind=self.figure_array.index(figure)
+                self.figure_array.remove(figure)
+                self.update()
+                return ind
+            
+    def edit_objects(self):
         
+
     def simulate(self):
         # 1. create objects and add them to particles
         self.add_objects()
@@ -459,16 +484,26 @@ class Minidraw_controller(QWidget):
         self.is_simulating = False
         self.figure_array.clear()
         self.figure_array_backup.clear()
+        self.status_stack.clear()
+        self.del_figure.clear()
         self.taichi_simulation.particles.clear()
         self.update()
 
     def undo(self):
-        if len(self.figure_array) > 0:
+        status=self.status_stack.pop()
+        if status[0]=='d':
+            self.figure_array.insert(status[1],self.del_figure.pop())
+        elif len(self.figure_array) > 0 and status[0]=='a':
+            self.figure_array.pop()
+        elif len(self.figure_array) > 0 and status[0]=='e':
+            self.figure_array.insert(status[1],self.del_figure.pop())
             self.figure_array.pop()
         self.update()
 
     def clearFigure(self):
         self.figure_array.clear()
+        self.status_stack.clear()
+        self.del_figure.clear()
         self.update()
 
     def save_scene(self):
