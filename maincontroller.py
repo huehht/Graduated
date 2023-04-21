@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List
 import math
 import taichi as ti
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
@@ -32,6 +31,7 @@ class MatterType(Enum):
 @ti.data_oriented
 class Simulation:
 
+    @ti.kernel
     def __init__(self) -> None:
         quality = 1  # Use a larger value for higher-res simulations
         self.n_grid = 128 * quality
@@ -154,8 +154,7 @@ class Simulation:
             p.v, p.C = new_v, new_C
             p.x += self.dt * p.v  # advection
 
-
-# Add circle object in scene
+    # Add circle object in scene
 
     @ti.kernel
     def add_object_circle(self,
@@ -180,6 +179,7 @@ class Simulation:
                 i += 1
 
     # Add rectangle object in scene
+    @ti.kernel
     def add_object_rectangle(self,
                              v1,
                              v2,
@@ -202,6 +202,7 @@ class Simulation:
             i += 1
 
     # Add polygon & free-hand object in scene
+    @ti.kernel
     def add_object_polygon(self,
                            polygon,
                            color,
@@ -223,6 +224,55 @@ class Simulation:
                     i += 1
 
 
+class FEM:
+
+    def __init__(self) -> None:
+        self.N = 40
+        self.dt = 1e-4
+        self.dx = 1 / self.N
+        self.rho = 4e1
+        self.NF = 2 * self.N**2  # number of faces
+        self.NV = (self.N + 1)**2  # number of vertices
+        self.E, self.nu = 4e4, 0.2  # Young's modulus and Poisson's ratio
+        self.mu, self.lam = self.E / 2 / (1 + self.nu), self.E * self.nu / (
+            1 + self.nu) / (1 - 2 * self.nu)
+        self.gravity = ti.Vector([0, -10])
+        self.damping = 12.5
+        # self.damping = 20
+
+        self.pos = ti.Vector.field(2, float, self.NV)
+        self.vel = ti.Vector.field(2, float, self.NV)
+        self.f2v = ti.Vector.field(
+            3, int, self.NF)  # ids of three vertices of each face
+        self.B = ti.Matrix.field(2, 2, float, self.NF)
+        self.W = ti.field(float, self.NF)
+        self.phi = ti.field(
+            float, self.NF)  # potential energy of each face (Neo-Hookean)
+        self.U = ti.field(float, (), needs_grad=True)  # total potential energy
+        self.f = ti.Vector.field(2, float, self.NV)
+
+    @ti.kernel
+    def update_force(self):
+        for i in range(self.NF):
+            ia, ib, ic = self.f2v[i]
+            a, b, c = self.pos[ia], self.pos[ib], self.pos[ic]
+
+            D_i = ti.Matrix.cols([a - c, b - c])
+            F = D_i @ self.B[i]
+            F_it = F.inverse().transpose()
+
+            PF = self.mu * (F - F_it) + self.lam * ti.log(
+                F.determinant()) * F_it
+            H = -self.W[i] * PF @ self.B[i].transpose()
+
+            fa = ti.Vector([H[0, 0], H[1, 0]])
+            fb = ti.Vector([H[0, 1], H[1, 1]])
+            fc = -fa - fb
+            self.f[ia] += fa
+            self.f[ib] += fb
+            self.f[ic] += fc
+
+
 class Minidraw_controller(QWidget):
 
     def __init__(self, parent=None):
@@ -233,6 +283,7 @@ class Minidraw_controller(QWidget):
 
         self.draw_status = False
         self.current_point = None
+        self.usingFEM = False
 
         self.current_line_color = Qt.white
         self.current_line_width = 7
