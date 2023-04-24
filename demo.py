@@ -118,7 +118,7 @@ def draw_line():
 def init_pos():
     for i, j in ti.ndrange(N + 1, N + 1):
         k = i * (N + 1) + j
-        pos[k] = ti.Vector([i, j]) / N * 0.25 + ti.Vector([0.5, 0.45])
+        pos[k] = ti.Vector([i, j]) / N * 0.25 + ti.Vector([0.375, 0.45])
         vel[k] = ti.Vector([0, 0])
     for i in range(NF):
         ia, ib, ic = f2v[i]

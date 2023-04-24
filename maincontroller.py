@@ -22,6 +22,7 @@ class FigureType(Enum):
 
 
 class MatterType(Enum):
+    NoType = -1
     Fluid = 0
     Jelly = 1
     Snow = 2
@@ -242,6 +243,7 @@ class FEM:
 
         self.pos = ti.Vector.field(2, float, self.NV)
         self.vel = ti.Vector.field(2, float, self.NV)
+        self.matr = ti.field(MatterType, self.NV)
         self.f2v = ti.Vector.field(
             3, int, self.NF)  # ids of three vertices of each face
         self.B = ti.Matrix.field(2, 2, float, self.NF)
@@ -250,27 +252,113 @@ class FEM:
             float, self.NF)  # potential energy of each face (Neo-Hookean)
         self.U = ti.field(float, (), needs_grad=True)  # total potential energy
         self.f = ti.Vector.field(2, float, self.NV)
+        self.init_mesh()
+        self.init_pos()
 
     @ti.kernel
     def update_force(self):
         for i in range(self.NF):
             ia, ib, ic = self.f2v[i]
+            if self.matr[ia] != MatterType.NoType and self.matr[
+                    ib] != MatterType.NoType and self.matr[
+                        ic] != MatterType.NoType:
+                a, b, c = self.pos[ia], self.pos[ib], self.pos[ic]
+
+                D_i = ti.Matrix.cols([a - c, b - c])
+                F = D_i @ self.B[i]
+                F_it = F.inverse().transpose()
+
+                PF = self.mu * (F - F_it) + self.lam * ti.log(
+                    F.determinant()) * F_it
+                H = -self.W[i] * PF @ self.B[i].transpose()
+
+                fa = ti.Vector([H[0, 0], H[1, 0]])
+                fb = ti.Vector([H[0, 1], H[1, 1]])
+                fc = -fa - fb
+                self.f[ia] += fa
+                self.f[ib] += fb
+                self.f[ic] += fc
+
+    @ti.kernel
+    def advance(self):
+        for i in range(self.NV):
+            acc = self.f[i] / (self.rho * self.dx**2)
+            self.vel[i] += self.dt * (acc + self.gravity)
+            self.vel[i] *= ti.exp(-self.dt * self.damping)
+        for i in range(self.NV):
+            # rect boundary condition:
+            cond = self.pos[i] < 0 and self.vel[i] < 0 or self.pos[
+                i] > 1 and self.vel[i] > 0
+            for j in ti.static(range(self.pos.n)):
+                if cond[j]:
+                    self.vel[i][j] = 0
+            self.pos[i] += self.dt * self.vel[i]
+
+    @ti.kernel
+    def point_in_polygon(figure, point):
+        pt_x = point[0]
+        pt_y = point[1]
+        if isinstance(figure, Rect):
+            return pt_x <= max(figure.start_x, figure.end_x) and pt_x >= min(
+                figure.start_x, figure.end_x) and pt_y <= max(
+                    figure.start_y, figure.end_y) and pt_y >= min(
+                        figure.start_y, figure.end_y)
+        elif isinstance(figure, Circle):
+            radius = abs(figure.start_x - figure.end_x)
+            center_x = (figure.start_x + figure.end_x) / 2
+            center_y = (figure.start_y + figure.end_y) / 2
+            return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
+        else:
+            points = figure.p_point_array
+            nums = len(points)
+            count = 0
+            for i in range(nums):
+                x1, y1 = points[i].x(), points[i].y()
+                x2, y2 = points[(i + 1) % nums].x(), points[(i + 1) % nums].y()
+                if min(y1, y2) < pt_y <= max(y1, y2):
+                    x = (pt_y - y1) * (x2 - x1) / (y2 - y1) + x1
+                    if x <= pt_x:
+                        count += 1
+            return count % 2 == 1
+
+    @ti.kernel
+    def init_pos(self):
+        for i, j in ti.ndrange(self.N + 1, self.N + 1):
+            k = i * (self.N + 1) + j
+            self.pos[k] = ti.Vector([i, j]) / self.N
+            self.vel[k] = ti.Vector([0, 0])
+            self.matr[k] = MatterType.NoType
+        for i in range(self.NF):
+            ia, ib, ic = self.f2v[i]
             a, b, c = self.pos[ia], self.pos[ib], self.pos[ic]
+            B_i = ti.Matrix.cols([a - c, b - c])
+            self.B[i] = B_i.inverse()
+            self.W[i] = abs(B_i.determinant())
 
-            D_i = ti.Matrix.cols([a - c, b - c])
-            F = D_i @ self.B[i]
-            F_it = F.inverse().transpose()
+    @ti.kernel
+    def init_mesh(self):
+        for i, j in ti.ndrange(self.N, self.N):
+            k = (i * self.N + j) * 2
+            a = i * (self.N + 1) + j
+            b = a + 1
+            c = a + self.N + 2
+            d = a + self.N + 1
+            self.f2v[k + 0] = [a, b, c]
+            self.f2v[k + 1] = [c, d, a]
 
-            PF = self.mu * (F - F_it) + self.lam * ti.log(
-                F.determinant()) * F_it
-            H = -self.W[i] * PF @ self.B[i].transpose()
+    @ti.kernel
+    def init_parameter(self):
+        for i in self.f:
+            self.f[i] = ti.Vector([0.0, 0.0])
 
-            fa = ti.Vector([H[0, 0], H[1, 0]])
-            fb = ti.Vector([H[0, 1], H[1, 1]])
-            fc = -fa - fb
-            self.f[ia] += fa
-            self.f[ib] += fb
-            self.f[ic] += fc
+    def add_object_figure(self,
+                          figure,
+                          t=MatterType.Solid,
+                          velocity=(0.0, 0.0)):
+        for k in range(self.NV):
+            if self.point_in_polygon(figure, self.pos[k]):
+                self.matr[k] = t
+                self.vel[k] = velocity
 
 
 class Minidraw_controller(QWidget):
@@ -284,6 +372,7 @@ class Minidraw_controller(QWidget):
         self.draw_status = False
         self.current_point = None
         self.usingFEM = False
+        self.usingMPM = True
 
         self.current_line_color = Qt.white
         self.current_line_width = 7
@@ -302,6 +391,7 @@ class Minidraw_controller(QWidget):
         self.is_drawing_polygon = False
         self.is_simulating = False
         self.taichi_simulation = Simulation()
+        self.fem_simulation = FEM()
 
     def point_in_polygon(figure, point: QPoint):
         pt_x = point.x()
@@ -432,12 +522,23 @@ class Minidraw_controller(QWidget):
                     self.figure_array.append(self.p_current_figure)
                     self.p_current_figure = None
 
-        for particle in self.taichi_simulation.particles:
-            painter.setPen(QPen(particle.c, 1))
-            painter.setBrush(QBrush(particle.c))
-            rectangle = QRect(particle.x[0] * self.window_w,
-                              particle.x[1] * self.window_h, 4, 4)
-            painter.drawEllipse(rectangle)
+        if self.usingMPM:
+            for particle in self.taichi_simulation.particles:
+                painter.setPen(QPen(particle.c, 1))
+                painter.setBrush(QBrush(particle.c))
+                rectangle = QRect(particle.x[0] * self.window_w,
+                                  particle.x[1] * self.window_h, 4, 4)
+                painter.drawEllipse(rectangle)
+
+        elif self.usingFEM:
+            pos_n = self.fem_simulation.pos.to_numpy()
+            node_f2v = self.fem_simulation.f2v.to_numpy()
+            for i in range(self.fem_simulation.NF):
+                #setting color and width
+                for j in range(3):
+                    a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
+                    painter.drawLine(pos_n[a][0], pos_n[a][1], pos_n[b][0],
+                                     pos_n[b][1])
 
     def add_objects(self):
         for i in range(len(self.figure_array)):
@@ -474,45 +575,49 @@ class Minidraw_controller(QWidget):
                 ptype = 'Fluid'
 
             p_points = p_figure.p_point_array
+            if self.usingFEM:
+                self.fem_simulation.add_object_figure(p_figure, ptype)
+            elif self.usingMPM:
 
-            # get object shape and create object
-            # if figure type is rectangle
-            if isinstance(p_figure, Rect):
-                assert len(p_points) == 2
-                x0 = float(p_points[0].x()) / self.window_w
-                y0 = float(p_points[0].y()) / self.window_h
-                x1 = float(p_points[1].x()) / self.window_w
-                y1 = float(p_points[1].y()) / self.window_h
+                # get object shape and create object
+                # if figure type is rectangle
+                if isinstance(p_figure, Rect):
+                    assert len(p_points) == 2
+                    x0 = float(p_points[0].x()) / self.window_w
+                    y0 = float(p_points[0].y()) / self.window_h
+                    x1 = float(p_points[1].x()) / self.window_w
+                    y1 = float(p_points[1].y()) / self.window_h
 
-                self.taichi_simulation.add_object_rectangle([x0, y0], [x1, y1],
-                                                            figure_color, 800,
-                                                            ptype)
+                    self.taichi_simulation.add_object_rectangle([x0, y0],
+                                                                [x1, y1],
+                                                                figure_color,
+                                                                800, ptype)
 
-            # if figure type is polygon, triangle or free-hand
-            elif isinstance(p_figure, Polygon) or isinstance(
-                    p_figure, Triangle) or isinstance(p_figure, Curve):
-                x0 = float(p_points[0].x()) / self.window_w
-                y0 = float(p_points[0].y()) / self.window_h
-                x1 = float(p_points[1].x()) / self.window_w
-                y1 = float(p_points[1].y()) / self.window_h
+                # if figure type is polygon, triangle or free-hand
+                elif isinstance(p_figure, Polygon) or isinstance(
+                        p_figure, Triangle) or isinstance(p_figure, Curve):
+                    x0 = float(p_points[0].x()) / self.window_w
+                    y0 = float(p_points[0].y()) / self.window_h
+                    x1 = float(p_points[1].x()) / self.window_w
+                    y1 = float(p_points[1].y()) / self.window_h
 
-                self.taichi_simulation.add_object_polygon(
-                    p_figure, figure_color, 800, ptype)
+                    self.taichi_simulation.add_object_polygon(
+                        p_figure, figure_color, 800, ptype)
 
-            # if figure type is circle
-            elif isinstance(p_figure, Circle):
-                p_points = p_figure.p_point_array
-                assert len(p_points) == 2
-                x0 = float(p_points[0].x()) / self.window_w
-                y0 = float(p_points[0].y()) / self.window_h
-                x1 = float(p_points[1].x()) / self.window_w
-                y1 = float(p_points[1].y()) / self.window_h
+                # if figure type is circle
+                elif isinstance(p_figure, Circle):
+                    p_points = p_figure.p_point_array
+                    assert len(p_points) == 2
+                    x0 = float(p_points[0].x()) / self.window_w
+                    y0 = float(p_points[0].y()) / self.window_h
+                    x1 = float(p_points[1].x()) / self.window_w
+                    y1 = float(p_points[1].y()) / self.window_h
 
-                self.taichi_simulation.add_object_circle([(x0 + x1) / 2,
-                                                          (y0 + y1) / 2],
-                                                         (x1 - x0) / 2,
-                                                         figure_color, 800,
-                                                         ptype)
+                    self.taichi_simulation.add_object_circle([(x0 + x1) / 2,
+                                                              (y0 + y1) / 2],
+                                                             (x1 - x0) / 2,
+                                                             figure_color, 800,
+                                                             ptype)
 
         # insert figure_array to the end of figure_array_backup, NOTE: no need to clear figure_Array_backup here
         self.figure_array_backup.extend(self.figure_array)
@@ -551,7 +656,13 @@ class Minidraw_controller(QWidget):
             QCoreApplication.processEvents()  # response to new message
             if not self.is_simulating:
                 break
-            self.taichi_simulation.substep()
+            if self.usingMPM:
+                self.taichi_simulation.substep()
+
+            elif self.usingFEM:
+                self.fem_simulation.init_parameter()
+                self.fem_simulation.update_force()
+                self.fem_simulation.advance()
 
             # 3. update frame, draw the particles in the window
             if step % int(self.frame_dt / self.dt) == 0:
