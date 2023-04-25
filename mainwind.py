@@ -9,8 +9,8 @@ class Minidraw(QMainWindow):
 
     def __init__(self, parent=None):
         super(Minidraw, self).__init__(parent)
-        self.ui = Ui_Minidraw()
-        self.ui.setupUi(self)
+        # self.ui = Ui_Minidraw()
+        # self.ui.setupUi(self)
         self.controller = Minidraw_controller()
         self.setCentralWidget(self.controller)
         self.setWindowTitle("Qtaichi")  # add title
@@ -21,8 +21,8 @@ class Minidraw(QMainWindow):
         self.create_simulation_toolbar()
         self.create_snow_type_toolbar()
 
-    def __del__(self):
-        del self.ui
+    # def __del__(self):
+    #     del self.ui
 
     def set_line_width(self, width):
         self.controller.current_line_width = width
@@ -204,6 +204,16 @@ class Minidraw(QMainWindow):
         action_simulate.triggered.connect(self.start_simulation)
         self.Simulation_toolbar.addAction(action_simulate)
 
+        action_usingFEM = QAction(QIcon(":/resources/FEM.jpg"),
+                                  "using FEM simulation", self)
+        action_usingFEM.triggered.connect(self.fem_simulation)
+        self.Simulation_toolbar.addAction(action_usingFEM)
+
+        action_usingMPM = QAction(QIcon(":/resources/MPM.jpg"),
+                                  "using MPM simulation", self)
+        action_usingMPM.triggered.connect(self.mpm_simulation)
+        self.Simulation_toolbar.addAction(action_usingMPM)
+
         action_pause_simul = QAction(QIcon(":/resources/pause.png"),
                                      "pause simulation", self)
         action_pause_simul.triggered.connect(self.pause_simulation)
@@ -280,6 +290,14 @@ class Minidraw(QMainWindow):
     def start_simulation(self):
         self.controller.is_simulating = True
         self.controller.simulate()
+
+    def fem_simulation(self):
+        self.controller.usingFEM = True
+        self.controller.usingMPM = False
+
+    def mpm_simulation(self):
+        self.controller.usingFEM = False
+        self.controller.usingMPM = True
 
     def pause_simulation(self):
         self.controller.is_simulating = False

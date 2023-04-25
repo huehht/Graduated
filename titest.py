@@ -20,14 +20,19 @@ class MyClass:
         self.temp = ti.field(dtype=ti.i32, shape=n)
 
 
-a = MyClass()  # creating an instance of Data-Oriented Class
+@ti.data_oriented
+class FEM:
 
-# a.call_inc() cannot be called, because a.temp has not been allocated at this point
-a.allocate_temp(4)  # [0 0 0 0]
-a.call_inc()  # [1 1 1 1]
-a.call_inc()  # [2 2 2 2]
-print(a.temp)  # will print [2 2 2 2]
+    # @ti.kernel
+    def __init__(self) -> None:
+        a = MyClass()  # creating an instance of Data-Oriented Class
 
-a.allocate_temp(8)  # [0 0 0 0 0 0 0 0 0]
-a.call_inc()  # [1 1 1 1 1 1 1 1]
-print(a.temp)  # will print [1 1 1 1 1 1 1 1]
+        # a.call_inc() cannot be called, because a.temp has not been allocated at this point
+        a.allocate_temp(4)  # [0 0 0 0]
+        a.call_inc()  # [1 1 1 1]
+        a.call_inc()  # [2 2 2 2]
+        print(a.temp)  # will print [2 2 2 2]
+
+        a.allocate_temp(8)  # [0 0 0 0 0 0 0 0 0]
+        a.call_inc()  # [1 1 1 1 1 1 1 1]
+        print(a.temp)  # will print [1 1 1 1 1 1 1 1]
