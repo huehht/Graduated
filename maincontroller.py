@@ -23,12 +23,7 @@ class FigureType(Enum):
     # Del = 8
 
 
-class MatterType(Enum):
-    NoType = -1
-    Fluid = 0
-    Jelly = 1
-    Snow = 2
-    Solid = 3
+MatterType = dict(NoType=0, Fluid=1, Jelly=2, Snow=3, Solid=4)
 
 
 # @ti.data_oriented
@@ -103,9 +98,7 @@ class Minidraw_controller(QWidget):
             elif not self.p_current_figure and self.isAdding:
                 self.status_stack.append(['a'])
                 if self.current_figure_type == FigureType.Line:
-                    self.p_current_figure = Line(self.current_point,
-                                                 self.current_line_width,
-                                                 self.current_line_color)
+                    self.p_current_figure = Line(self.current_point)
                 elif self.current_figure_type == FigureType.Curve:
                     self.p_current_figure = Curve(self.current_point)
                 elif self.current_figure_type == FigureType.Rectangle:
@@ -135,8 +128,8 @@ class Minidraw_controller(QWidget):
             self.current_point = event.pos()
         elif self.draw_status:
             self.current_point = event.pos()
-            self.p_current_figure.draw_dynamic(self.get_painter(),
-                                               self.current_point)
+            # self.p_current_figure.draw_dynamic(self.get_painter(),
+            #                                    self.current_point)
         self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -179,7 +172,7 @@ class Minidraw_controller(QWidget):
         self.setPalette(pal)
 
         painter.setPen(QPen(self.current_line_color, self.current_line_width))
-        if self.p_current_figure is not None:
+        if self.p_current_figure:
             self.p_current_figure.draw_dynamic(painter, self.current_point)
 
         for figure in self.figure_array:
@@ -204,8 +197,7 @@ class Minidraw_controller(QWidget):
         elif self.usingFEM:
             pos_n = self.fem_simulation.pos.to_numpy()
             node_f2v = self.fem_simulation.f2v.to_numpy()
-            for i in range(self.fem_simulation.NF):
-                #setting color and width
+            for i in range(self.fem_simulation.NF):  #setting color and width
                 for j in range(3):
                     a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
                     painter.drawLine(pos_n[a][0], pos_n[a][1], pos_n[b][0],
@@ -237,13 +229,13 @@ class Minidraw_controller(QWidget):
             #  blue: fluid
             figure_color = p_figure.get_color()
             if figure_color == Qt.black:
-                ptype = 'Solid'
+                ptype = MatterType['Solid']
             elif figure_color == Qt.white:
-                ptype = 'Snow'
+                ptype = MatterType['Snow']
             elif figure_color == QColor(0xED553B):
-                ptype = 'Jelly'
+                ptype = MatterType['Jelly']
             else:
-                ptype = 'Fluid'
+                ptype = MatterType['Fluid']
 
             p_points = p_figure.p_point_array
             if self.usingFEM:

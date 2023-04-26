@@ -1,4 +1,4 @@
-from PyQt5.QtGui import QColor, QPolygonF, QPainter, QPen
+from PyQt5.QtGui import QColor, QPolygonF, QPainter, QPen, QPolygon
 from PyQt5.QtCore import QPoint, QPointF, QRect
 # from PyQt5.QtWidgets import QPainter
 
@@ -137,17 +137,17 @@ class Curve(Figure):
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         self.p_point_array.append(current_point)
         if len(self.p_point_array) > 1:
-            paint.drawPolyline(self.p_point_array)
+            paint.drawPolyline(QPolygonF(self.p_point_array))
         # only one point: without moving cursor, just click
         else:
-            paint.drawPoints(self.p_point_array)
+            paint.drawPoints(self.p_point_array[0])
 
     def draw(self, paint: QPainter):
         if len(self.p_point_array) > 1:
-            paint.drawPolyline(self.p_point_array)
+            paint.drawPolyline(QPolygonF(self.p_point_array))
         # only one point: without moving cursor, just click
         else:
-            paint.drawPoints(self.p_point_array)
+            paint.drawPoints(self.p_point_array[0])
 
 
 class Ellipse(Figure):

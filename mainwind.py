@@ -3,14 +3,15 @@ from PyQt5.QtWidgets import QMainWindow, QApplication, QToolBar, QAction, QSlide
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtCore import Qt
 from maincontroller import FigureType, MatterType, Minidraw_controller
+from uimianwind import Ui_Minidraw
 
 
 class Minidraw(QMainWindow):
 
     def __init__(self, parent=None):
         super(Minidraw, self).__init__(parent)
-        # self.ui = Ui_Minidraw()
-        # self.ui.setupUi(self)
+        self.ui = Ui_Minidraw()
+        self.ui.setupUi(self)
         self.controller = Minidraw_controller()
         self.setCentralWidget(self.controller)
         self.setWindowTitle("Qtaichi")  # add title
@@ -19,10 +20,10 @@ class Minidraw(QMainWindow):
         self.create_toolbar()
         self.create_figure_toolbar()
         self.create_simulation_toolbar()
-        self.create_snow_type_toolbar()
+        # self.create_snow_type_toolbar()
 
-    # def __del__(self):
-    #     del self.ui
+    def __del__(self):
+        del self.ui
 
     def set_line_width(self, width):
         self.controller.current_line_width = width
@@ -234,58 +235,58 @@ class Minidraw(QMainWindow):
         action_clear_simul.triggered.connect(self.clear_simulation)
         self.Simulation_toolbar.addAction(action_clear_simul)
 
-    def create_snow_type_toolbar(self):
-        self.SnowType_toolbar = self.addToolBar("snow type toolbar")
-        choose_snow_type = [None] * 6
+        # def create_snow_type_toolbar(self):
+        #     self.SnowType_toolbar = self.addToolBar("snow type toolbar")
+        #     choose_snow_type = [None] * 6
 
-        choose_snow_type[0] = QAction(QIcon(":/resources/num1.jpg"),
-                                      "Lower Hardening", self)
-        choose_snow_type[0].triggered.connect(self.set_snow_type_1)
-        self.SnowType_toolbar.addAction(choose_snow_type[0])
+        #     choose_snow_type[0] = QAction(QIcon(":/resources/num1.jpg"),
+        #                                   "Lower Hardening", self)
+        #     choose_snow_type[0].triggered.connect(self.set_snow_type_1)
+        #     self.SnowType_toolbar.addAction(choose_snow_type[0])
 
-        choose_snow_type[1] = QAction(QIcon(":/resources/num2.jpg"),
-                                      "Lower Young's", self)
-        choose_snow_type[1].triggered.connect(self.set_snow_type_2)
-        self.SnowType_toolbar.addAction(choose_snow_type[1])
+        #     choose_snow_type[1] = QAction(QIcon(":/resources/num2.jpg"),
+        #                                   "Lower Young's", self)
+        #     choose_snow_type[1].triggered.connect(self.set_snow_type_2)
+        #     self.SnowType_toolbar.addAction(choose_snow_type[1])
 
-        choose_snow_type[2] = QAction(QIcon(":/resources/num3.jpg"),
-                                      "Lower Critical Compression", self)
-        choose_snow_type[2].triggered.connect(self.set_snow_type_3)
-        self.SnowType_toolbar.addAction(choose_snow_type[2])
+        #     choose_snow_type[2] = QAction(QIcon(":/resources/num3.jpg"),
+        #                                   "Lower Critical Compression", self)
+        #     choose_snow_type[2].triggered.connect(self.set_snow_type_3)
+        #     self.SnowType_toolbar.addAction(choose_snow_type[2])
 
-        choose_snow_type[3] = QAction(QIcon(":/resources/num4.jpg"),
-                                      "Reference", self)
-        choose_snow_type[3].triggered.connect(self.set_snow_type_4)
-        self.SnowType_toolbar.addAction(choose_snow_type[3])
+        #     choose_snow_type[3] = QAction(QIcon(":/resources/num4.jpg"),
+        #                                   "Reference", self)
+        #     choose_snow_type[3].triggered.connect(self.set_snow_type_4)
+        #     self.SnowType_toolbar.addAction(choose_snow_type[3])
 
-        choose_snow_type[4] = QAction(QIcon(":/resources/num5.jpg"),
-                                      "Lower Critical Compression & Stretch",
-                                      self)
-        choose_snow_type[4].triggered.connect(self.set_snow_type_5)
-        self.SnowType_toolbar.addAction(choose_snow_type[4])
+        #     choose_snow_type[4] = QAction(QIcon(":/resources/num5.jpg"),
+        #                                   "Lower Critical Compression & Stretch",
+        #                                   self)
+        #     choose_snow_type[4].triggered.connect(self.set_snow_type_5)
+        #     self.SnowType_toolbar.addAction(choose_snow_type[4])
 
-        choose_snow_type[5] = QAction(QIcon(":/resources/num6.jpg"),
-                                      "Lower Critical Stretch", self)
-        choose_snow_type[5].triggered.connect(self.set_snow_type_6)
-        self.SnowType_toolbar.addAction(choose_snow_type[5])
+        #     choose_snow_type[5] = QAction(QIcon(":/resources/num6.jpg"),
+        #                                   "Lower Critical Stretch", self)
+        #     choose_snow_type[5].triggered.connect(self.set_snow_type_6)
+        #     self.SnowType_toolbar.addAction(choose_snow_type[5])
 
-    def set_snow_type_1(self):
-        self.controller.set_snow_type(1)
+        # def set_snow_type_1(self):
+        #     self.controller.set_snow_type(1)
 
-    def set_snow_type_2(self):
-        self.controller.set_snow_type(2)
+        # def set_snow_type_2(self):
+        #     self.controller.set_snow_type(2)
 
-    def set_snow_type_3(self):
-        self.controller.set_snow_type(3)
+        # def set_snow_type_3(self):
+        #     self.controller.set_snow_type(3)
 
-    def set_snow_type_4(self):
-        self.controller.set_snow_type(4)
+        # def set_snow_type_4(self):
+        #     self.controller.set_snow_type(4)
 
-    def set_snow_type_5(self):
-        self.controller.set_snow_type(5)
+        # def set_snow_type_5(self):
+        #     self.controller.set_snow_type(5)
 
-    def set_snow_type_6(self):
-        self.controller.set_snow_type(6)
+        # def set_snow_type_6(self):
+        # self.controller.set_snow_type(6)
 
     def start_simulation(self):
         self.controller.is_simulating = True

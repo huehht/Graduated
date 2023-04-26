@@ -23,12 +23,7 @@ class FigureType(Enum):
     # Del = 8
 
 
-class MatterType(Enum):
-    NoType = -1
-    Fluid = 0
-    Jelly = 1
-    Snow = 2
-    Solid = 3
+MatterType = dict(NoType=0, Fluid=1, Jelly=2, Snow=3, Solid=4)
 
 
 @ti.data_oriented
@@ -67,7 +62,7 @@ class Simulations:
                 v=[0, 0],
                 #  C=ti.Matrix.zero(float, 2, 2),
                 #  F=ti.Matrix([[1, 0], [0, 1]]),
-                material=MatterType.Solid,
+                material=MatterType['Solid'],
                 Jp=1,
                 colour=Qt.red) -> None:
 
@@ -168,7 +163,7 @@ class Simulations:
                           radius,
                           color,
                           num=500,
-                          t=MatterType.Solid,
+                          t=MatterType['Solid'],
                           velocity=(0.0, 0.0)):
         i = 0
         area = math.pi * (radius * radius) * self.window_w * self.window_h
@@ -191,7 +186,7 @@ class Simulations:
                              v2,
                              color,
                              num=500,
-                             t=MatterType.Solid,
+                             t=MatterType['Solid'],
                              velocity=(0.0, 0.0)):
         box_min = [min(v1[0], v2[0]), min(v1[1], v2[1])]
         box_max = [max(v1[0], v2[0]), max(v1[1], v2[1])]
@@ -266,9 +261,9 @@ class FEM:
     def update_force(self):
         for i in range(self.NF):
             ia, ib, ic = self.f2v[i]
-            if self.matr[ia] != MatterType.NoType and self.matr[
-                    ib] != MatterType.NoType and self.matr[
-                        ic] != MatterType.NoType:
+            if self.matr[ia] != MatterType['NoType'] and self.matr[
+                    ib] != MatterType['NoType'] and self.matr[
+                        ic] != MatterType['NoType']:
                 a, b, c = self.pos[ia], self.pos[ib], self.pos[ic]
 
                 D_i = ti.Matrix.cols([a - c, b - c])
@@ -334,7 +329,7 @@ class FEM:
             k = i * (self.N + 1) + j
             self.pos[k] = ti.Vector([i, j]) / self.N
             self.vel[k] = ti.Vector([0, 0])
-            self.matr[k] = MatterType.NoType
+            self.matr[k] = MatterType['NoType']
         for i in range(self.NF):
             ia, ib, ic = self.f2v[i]
             a, b, c = self.pos[ia], self.pos[ib], self.pos[ic]
@@ -360,7 +355,7 @@ class FEM:
 
     def add_object_figure(self,
                           figure,
-                          t=MatterType.Solid,
+                          t=MatterType['Solid'],
                           velocity=(0.0, 0.0)):
         for k in range(self.NV):
             if self.point_in_polygon(figure, self.pos[k]):
