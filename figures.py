@@ -87,14 +87,14 @@ class Rect(Polygon):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        self.end_x = int(current_point.rx())
-        self.end_y = int(current_point.ry())
+        self.end_x = int(current_point.x())
+        self.end_y = int(current_point.y())
         paint.drawRect(self.start_x, self.start_y, self.end_x - self.start_x,
                        self.end_y - self.start_y)
 
     def draw(self, paint: QPainter):
-        self.end_x = int(self.p_point_array[1].rx())
-        self.end_y = int(self.p_point_array[1].ry())
+        self.end_x = int(self.p_point_array[1].x())
+        self.end_y = int(self.p_point_array[1].y())
 
         paint.drawRect(self.start_x, self.start_y, self.end_x - self.start_x,
                        self.end_y - self.start_y)
@@ -107,8 +107,8 @@ class Triangle(Polygon):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        self.end_x = int(current_point.rx())
-        self.end_y = int(current_point.ry())
+        self.end_x = int(current_point.x())
+        self.end_y = int(current_point.y())
 
         points = [
             QPointF(self.start_x, self.start_y),  # left_botton_point
@@ -157,15 +157,15 @@ class Ellipse(Figure):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        end_x = int(current_point.rx())
-        end_y = int(current_point.ry())
+        end_x = int(current_point.x())
+        end_y = int(current_point.y())
         rectangle = QRect(self.start_x, self.start_y, end_x - self.start_x,
                           end_y - self.start_y)
         paint.drawEllipse(rectangle)
 
     def draw(self, paint: QPainter):
-        end_x = int(self.p_point_array[1].rx())
-        end_y = int(self.p_point_array[1].ry())
+        end_x = int(self.p_point_array[1].x())
+        end_y = int(self.p_point_array[1].y())
 
         rectangle = QRect(self.start_x, self.start_y, end_x - self.start_x,
                           end_y - self.start_y)
@@ -179,14 +179,14 @@ class Circle(Ellipse):
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
-        self.end_x = int(current_point.rx())
+        self.end_x = int(current_point.x())
 
         rectangle = QRect(self.start_x, self.start_y,
                           self.end_x - self.start_x, self.end_x - self.start_x)
         paint.drawEllipse(rectangle)
 
     def draw(self, paint: QPainter):
-        self.end_x = int(self.p_point_array[1].rx())
+        self.end_x = int(self.p_point_array[1].x())
 
         rectangle = QRect(self.start_x, self.start_y,
                           self.end_x - self.start_x, self.end_x - self.start_x)

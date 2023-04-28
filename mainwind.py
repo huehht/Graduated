@@ -112,23 +112,23 @@ class Minidraw(QMainWindow):
         self.slider_toolbar.addWidget(self.slider_line_width)
 
         # create button for color
-        button_black = QAction(QIcon(":/resources/solid.png"), "Solid", self)
+        button_black = QAction(QIcon("resources/solid.png"), "Solid", self)
         button_black.triggered.connect(self.set_line_color_black)
         self.color_toolbar.addAction(button_black)
 
-        button_white = QAction(QIcon(":/resources/snow.png"), "Snow", self)
+        button_white = QAction(QIcon("resources/snow.png"), "Snow", self)
         button_white.triggered.connect(self.set_line_color_white)
         self.color_toolbar.addAction(button_white)
 
-        button_blue = QAction(QIcon(":/resources/fluid.png"), "Fluid", self)
+        button_blue = QAction(QIcon("resources/fluid.png"), "Fluid", self)
         button_blue.triggered.connect(self.set_line_color_blue)
         self.color_toolbar.addAction(button_blue)
 
-        button_orange = QAction(QIcon(":/resources/jelly.png"), "Jelly", self)
+        button_orange = QAction(QIcon("resources/jelly.png"), "Jelly", self)
         button_orange.triggered.connect(self.set_line_color_orange)
         self.color_toolbar.addAction(button_orange)
 
-        button_red = QAction(QIcon(":/resources/velocity.png"),
+        button_red = QAction(QIcon("resources/velocity.png"),
                              "Draw Velocity Vector", self)
         button_red.triggered.connect(self.set_line_color_red)
         self.color_toolbar.addAction(button_red)
@@ -138,56 +138,56 @@ class Minidraw(QMainWindow):
         self.figure_toolbar = self.addToolBar("Figure Tools")
 
         # button for curve
-        choose_curve_act = QAction(QIcon(":/resources/curve_icon.png"),
+        choose_curve_act = QAction(QIcon("resources/curve_icon.png"),
                                    "curve tool", self)
         choose_curve_act.triggered.connect(self.set_figure_tool_curve)
         self.figure_toolbar.addAction(choose_curve_act)
 
         # button for circle
-        choose_circle_act = QAction(QIcon(":/resources/circle_icon.png"),
+        choose_circle_act = QAction(QIcon("resources/circle_icon.png"),
                                     "circle tool", self)
         choose_circle_act.triggered.connect(self.set_figure_tool_circle)
         self.figure_toolbar.addAction(choose_circle_act)
 
         # button for rectangle
-        choose_rect_act = QAction(QIcon(":/resources/rect_icon.png"),
+        choose_rect_act = QAction(QIcon("resources/rect_icon.png"),
                                   "rect tool", self)
         choose_rect_act.triggered.connect(self.set_figure_tool_rect)
         self.figure_toolbar.addAction(choose_rect_act)
 
         # button for triangle
-        choose_tri_act = QAction(QIcon(":/resources/tri_icon.png"),
+        choose_tri_act = QAction(QIcon("resources/tri_icon.png"),
                                  "triangle tool", self)
         choose_tri_act.triggered.connect(self.set_figure_tool_tri)
         self.figure_toolbar.addAction(choose_tri_act)
 
         # button for polygon
-        choose_poly_act = QAction(QIcon(":/resources/polygon_icon.png"),
+        choose_poly_act = QAction(QIcon("resources/polygon_icon.png"),
                                   "poly tool", self)
         choose_poly_act.triggered.connect(self.set_figure_tool_poly)
         self.figure_toolbar.addAction(choose_poly_act)
 
         # button for delete
-        action_del = QAction(QIcon(":/resources/del.png"), "delete element",
+        action_del = QAction(QIcon("resources/del.png"), "delete element",
                              self)
         action_del.triggered.connect(self.set_figure_tool_del)
         self.figure_toolbar.addAction(action_del)
 
         # button for edit
-        action_edit = QAction(QIcon(":/resources/edit.png"),
+        action_edit = QAction(QIcon("resources/edit.png"),
                               "edit element's position", self)
         action_edit.triggered.connect(self.set_figure_tool_edit)
         self.figure_toolbar.addAction(action_edit)
 
         # button for undo
-        action_undo = QAction(QIcon(":/resources/undo.png"), "undo painting",
+        action_undo = QAction(QIcon("resources/undo.png"), "undo painting",
                               self)
         action_undo.triggered.connect(self.undo)
         self.figure_toolbar.addAction(action_undo)
 
         # button for clear
-        action_clear = QAction(QIcon(":/resources/clear.jpg"),
-                               "clear paintings", self)
+        action_clear = QAction(QIcon("resources/clear.jpg"), "clear paintings",
+                               self)
         action_clear.triggered.connect(self.clear)
         self.figure_toolbar.addAction(action_clear)
 
@@ -200,37 +200,37 @@ class Minidraw(QMainWindow):
     # Create simulation toolbar
     def create_simulation_toolbar(self):
         self.Simulation_toolbar = self.addToolBar("simulation toolbar")
-        action_simulate = QAction(QIcon(":/resources/simulate.jpg"),
+        action_simulate = QAction(QIcon("resources/simulate.jpg"),
                                   "start simulation", self)
         action_simulate.triggered.connect(self.start_simulation)
         self.Simulation_toolbar.addAction(action_simulate)
 
-        action_usingFEM = QAction(QIcon(":/resources/FEM.jpg"),
+        action_usingFEM = QAction(QIcon("resources/FEM.jpg"),
                                   "using FEM simulation", self)
         action_usingFEM.triggered.connect(self.fem_simulation)
         self.Simulation_toolbar.addAction(action_usingFEM)
 
-        action_usingMPM = QAction(QIcon(":/resources/MPM.jpg"),
+        action_usingMPM = QAction(QIcon("resources/MPM.jpg"),
                                   "using MPM simulation", self)
         action_usingMPM.triggered.connect(self.mpm_simulation)
         self.Simulation_toolbar.addAction(action_usingMPM)
 
-        action_pause_simul = QAction(QIcon(":/resources/pause.png"),
+        action_pause_simul = QAction(QIcon("resources/pause.png"),
                                      "pause simulation", self)
         action_pause_simul.triggered.connect(self.pause_simulation)
         self.Simulation_toolbar.addAction(action_pause_simul)
 
-        action_save_simul = QAction(QIcon(":/resources/save.png"),
+        action_save_simul = QAction(QIcon("resources/save.png"),
                                     "save current scene", self)
         action_save_simul.triggered.connect(self.save_scene)
         self.Simulation_toolbar.addAction(action_save_simul)
 
-        action_reset_simul = QAction(QIcon(":/resources/reset.png"),
+        action_reset_simul = QAction(QIcon("resources/reset.png"),
                                      "reset simulation", self)
         action_reset_simul.triggered.connect(self.reset_simulation)
         self.Simulation_toolbar.addAction(action_reset_simul)
 
-        action_clear_simul = QAction(QIcon(":/resources/clear.png"),
+        action_clear_simul = QAction(QIcon("resources/clear.png"),
                                      "clear simulation", self)
         action_clear_simul.triggered.connect(self.clear_simulation)
         self.Simulation_toolbar.addAction(action_clear_simul)

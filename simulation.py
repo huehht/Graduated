@@ -1,6 +1,8 @@
 from enum import Enum
 import math
 import taichi as ti
+import numpy as np
+import random
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
 from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
 from PyQt5.QtWidgets import QWidget, QFileDialog
@@ -23,16 +25,18 @@ class FigureType(Enum):
     # Del = 8
 
 
-MatterType = dict(NoType=0, Fluid=1, Jelly=2, Snow=3, Solid=4)
+MatterType = dict(NoType=0, Fluid=1, Jelly=2, Steel=3, Plastic=4)
 
 
 @ti.data_oriented
 class Simulations:
 
     # @ti.kernel
-    def __init__(self) -> None:
+    def __init__(self, w, h) -> None:
         quality = 1  # Use a larger value for higher-res simulations
         self.n_grid = 128 * quality
+        self.n_particles = 40000 * quality**2
+        self.n_space = 200 * quality
         self.dx, self.inv_dx = 1 / self.n_grid, float(self.n_grid)
         self.dt = 1e-4 / quality
         self.p_vol, self.p_rho = (self.dx * 0.5)**2, 1
@@ -51,6 +55,20 @@ class Simulations:
         # num of particles = ratio * area
         self.gravity = ti.Vector.field(2, dtype=float, shape=())
         self.gravity[None] = [0, -1]
+        self.window_w = w
+        self.window_h = h
+        self.x = ti.Vector.field(2, dtype=float,
+                                 shape=self.n_particles)  # position
+        self.v = ti.Vector.field(2, dtype=float,
+                                 shape=self.n_particles)  # velocity
+        self.C = ti.Matrix.field(
+            2, 2, dtype=float, shape=self.n_particles)  # affine velocity field
+        self.F = ti.Matrix.field(
+            2, 2, dtype=float, shape=self.n_particles)  # deformation gradient
+        self.material = ti.field(dtype=int,
+                                 shape=self.n_particles)  # material id
+        self.Jp = ti.field(dtype=float,
+                           shape=self.n_particles)  # plastic deformation
 
     @ti.data_oriented
     class particle:
@@ -62,67 +80,98 @@ class Simulations:
                 v=[0, 0],
                 #  C=ti.Matrix.zero(float, 2, 2),
                 #  F=ti.Matrix([[1, 0], [0, 1]]),
-                material=MatterType['Solid'],
+                material=MatterType['Plastic'],
                 Jp=1,
-                colour=Qt.red) -> None:
+                color=Qt.red) -> None:
 
             self.x = x  # position
             self.v = v  # velocity
-            self.C = ti.Matrix.zero(float, 2, 2)  # affine velocity field
-            self.F = ti.Matrix([[1, 0], [0, 1]])  # deformation gradient
             self.material = material  # material id
             self.Jp = Jp  # plastic deformation
-            self.colour = colour
+            self.c = color
+            self.C = ti.Matrix([[0, 0], [0, 0]])  # affine velocity field
+            self.F = ti.Matrix([[1, 0], [0, 1]])  # deformation gradient
+            # self.setting()
+
+        # @ti.kernel
+        # def setting(self):
+        #     self.C = ti.Matrix.zero(float, 2, 2)  # affine velocity field
+        #     self.F = ti.Matrix([[1, 0], [0, 1]])  # deformation gradient
 
     @ti.kernel
-    def substep(self):
-        for i, j in self.grid_m:
-            self.grid_v[i, j] = [0, 0]
-            self.grid_m[i, j] = 0
-        for p in self.particles:  # Particle state update and scatter to grid (P2G)
-            base = (p.x * self.inv_dx - 0.5).cast(int)
-            fx = p.x * self.inv_dx - base.cast(float)
-            # Quadratic kernels  [http://mpm.graphics   Eqn. 123, with x=fx, fx-1,fx-2]
-            w = [0.5 * (1.5 - fx)**2, 0.75 - (fx - 1)**2, 0.5 * (fx - 0.5)**2]
-            # deformation gradient update
-            p.F = (ti.Matrix.identity(float, 2) + self.dt * p.C) @ p.F
-            # Hardening coefficient: snow gets harder when compressed
-            h = ti.max(0.1, ti.min(5, ti.exp(10 * (1.0 - p.Jp))))
-            if p.material == 1:  # jelly, make it softer
-                h = 0.3
-            mu, la = self.mu_0 * h, self.lambda_0 * h
-            if p.material == 0:  # liquid
-                mu = 0.0
-            U, sig, V = ti.svd(p.F)
-            J = 1.0
-            for d in ti.static(range(2)):
-                new_sig = sig[d, d]
-                if p.material == 2:  # Snow
-                    new_sig = min(max(sig[d, d], 1 - 2.5e-2),
-                                  1 + 4.5e-3)  # Plasticity
-                p.Jp *= sig[d, d] / new_sig
-                sig[d, d] = new_sig
-                J *= new_sig
-            if p.material == 0:
-                # Reset deformation gradient to avoid numerical instability
-                p.F = ti.Matrix.identity(float, 2) * ti.sqrt(J)
-            elif p.material == 2:
-                # Reconstruct elastic deformation gradient after plasticity
-                p.F = U @ sig @ V.transpose()
-            stress = 2 * mu * (p.F - U @ V.transpose()) @ p.F.transpose(
-            ) + ti.Matrix.identity(float, 2) * la * J * (J - 1)
-            stress = (-self.dt * self.p_vol * 4 * self.inv_dx *
-                      self.inv_dx) * stress
-            affine = stress + self.p_mass * p.C
-            for i, j in ti.static(ti.ndrange(3, 3)):
-                # Loop over 3x3 grid node neighborhood
-                offset = ti.Vector([i, j])
-                dpos = (offset.cast(float) - fx) * self.dx
-                weight = w[i][0] * w[j][1]
-                self.grid_v[base +
-                            offset] += self.weight * (self.p_mass * p.v +
-                                                      affine @ dpos)
-                self.grid_m[base + offset] += weight * self.p_mass
+    def subpars(self, p: ti.template()):
+        # p.x.from_numpy(p.x)
+        # temp = ti.Matrix(p.x)
+        base = (p.x * self.inv_dx - 0.5).cast(int)
+        fx = p.x * self.inv_dx - base.cast(float)
+        # Quadratic kernels  [http://mpm.graphics   Eqn. 123, with x=fx, fx-1,fx-2]
+        w = [0.5 * (1.5 - fx)**2, 0.75 - (fx - 1)**2, 0.5 * (fx - 0.5)**2]
+
+        # deformation gradient update
+        p.F = (ti.Matrix.identity(float, 2) + self.dt * p.C) @ p.F
+        # Hardening coefficient: snow gets harder when compressed
+        h = ti.max(0.1, ti.min(5, ti.exp(10 * (1.0 - p.Jp))))
+        if p.material == 3:
+            E, nu = 2e4, 0.3  # Young's modulus and Poisson's ratio
+            self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+                (1 + nu) * (1 - 2 * nu))  # Lame parameters
+        elif p.material == 4:
+            E, nu = 7e2, 0.4  # Young's modulus and Poisson's ratio
+            self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+                (1 + nu) * (1 - 2 * nu))  # Lame parameters
+        elif p.material == 2:  # jelly, make it softer
+            h = 0.3
+        mu, la = self.mu_0 * h, self.lambda_0 * h
+        if p.material == 1:  # liquid
+            mu = 0.0
+        U, sig, V = ti.svd(p.F)
+        J = 1.0
+        for d in ti.static(range(2)):
+            new_sig = sig[d, d]
+            p.Jp *= sig[d, d] / new_sig
+            sig[d, d] = new_sig
+            J *= new_sig
+        if p.material == 1:
+            # Reset deformation gradient to avoid numerical instability
+            p.F = ti.Matrix.identity(float, 2) * ti.sqrt(J)
+        stress = 2 * mu * (p.F - U @ V.transpose()) @ p.F.transpose(
+        ) + ti.Matrix.identity(float, 2) * la * J * (J - 1)
+        stress = (-self.dt * self.p_vol * 4 * self.inv_dx *
+                  self.inv_dx) * stress
+        affine = stress + self.p_mass * p.C
+        for i, j in ti.static(ti.ndrange(3, 3)):
+            # Loop over 3x3 grid node neighborhood
+            offset = ti.Vector([i, j])
+            dpos = (offset.cast(float) - fx) * self.dx
+            weight = w[i][0] * w[j][1]
+            self.grid_v[base + offset] += self.weight * (self.p_mass * p.v +
+                                                         affine @ dpos)
+            self.grid_m[base + offset] += weight * self.p_mass
+
+    @ti.kernel
+    def g2p(self, p: ti.template()):
+        # temp = ti.Matrix(p.x)
+        base = (p.x * self.inv_dx - 0.5).cast(int)
+        fx = p.x * self.inv_dx - base.cast(float)
+        w = [0.5 * (1.5 - fx)**2, 0.75 - (fx - 1.0)**2, 0.5 * (fx - 0.5)**2]
+        new_v = ti.Vector.zero(float, 2)
+        new_C = ti.Matrix.zero(float, 2, 2)
+        for i, j in ti.static(ti.ndrange(3, 3)):
+            # loop over 3x3 grid node neighborhood
+            dpos = ti.Vector([i, j]).cast(float) - fx
+            g_v = self.grid_v[base + ti.Vector([i, j])]
+            weight = w[i][0] * w[j][1]
+            new_v += weight * g_v
+            new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
+        p.v, p.C = new_v, new_C
+        p.x += self.dt * p.v  # advection
+
+    # @ti.kernel
+    # def prit(self, p: ti.template()):
+    #     print(p.x, p.v, p.c)
+
+    @ti.kernel
+    def gridtest(self):
         for i, j in self.grid_m:
             if self.grid_m[i, j] > 0:  # No need for epsilon here
                 # Momentum to velocity
@@ -137,23 +186,25 @@ class Simulations:
                     self.grid_v[i, j][1] = 0
                 if j > self.n_grid - 3 and self.grid_v[i, j][1] > 0:
                     self.grid_v[i, j][1] = 0
+
+    @ti.kernel
+    def gridinit(self):
+        for i, j in self.grid_m:
+            self.grid_v[i, j] = [0, 0]
+            self.grid_m[i, j] = 0
+
+    def substep(self):
+        self.gridinit()
+        for p in self.particles:
+            print(p.F)
+            self.subpars(p)
+        self.gridtest()
         for p in self.particles:  # grid to particle (G2P)
-            base = (p.x * self.inv_dx - 0.5).cast(int)
-            fx = p.x * self.inv_dx - base.cast(float)
-            w = [
-                0.5 * (1.5 - fx)**2, 0.75 - (fx - 1.0)**2, 0.5 * (fx - 0.5)**2
-            ]
-            new_v = ti.Vector.zero(float, 2)
-            new_C = ti.Matrix.zero(float, 2, 2)
-            for i, j in ti.static(ti.ndrange(3, 3)):
-                # loop over 3x3 grid node neighborhood
-                dpos = ti.Vector([i, j]).cast(float) - fx
-                g_v = self.grid_v[base + ti.Vector([i, j])]
-                weight = w[i][0] * w[j][1]
-                new_v += weight * g_v
-                new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
-            p.v, p.C = new_v, new_C
-            p.x += self.dt * p.v  # advection
+            self.g2p(p)
+
+    @ti.kernel
+    def ran(self) -> ti.f32:
+        return ti.random()
 
     # Add circle object in scene
 
@@ -163,30 +214,31 @@ class Simulations:
                           radius,
                           color,
                           num=500,
-                          t=MatterType['Solid'],
+                          t=MatterType['Plastic'],
                           velocity=(0.0, 0.0)):
         i = 0
         area = math.pi * (radius * radius) * self.window_w * self.window_h
         num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
         while i < num:
-            pos = [((ti.random() * 2) - 1) * radius,
-                   ((ti.random() * 2) - 1) * radius]
+            pos = [((self.ran() * 2) - 1) * radius,
+                   ((self.ran() * 2) - 1) * radius]
             if pos[0] * pos[0] + pos[1] * pos[1] < radius * radius:
                 self.particles.append(
-                    self.particle(x=[pos[0] + center[0], pos[1] + center[1]],
+                    self.particle(x=np.array(
+                        [pos[0] + center[0], pos[1] + center[1]]),
                                   v=velocity,
-                                  colour=color,
+                                  color=color,
                                   material=t))
                 i += 1
 
     # Add rectangle object in scene
-    # @ti.kernel
+
     def add_object_rectangle(self,
                              v1,
                              v2,
                              color,
                              num=500,
-                             t=MatterType['Solid'],
+                             t=MatterType['Plastic'],
                              velocity=(0.0, 0.0)):
         box_min = [min(v1[0], v2[0]), min(v1[1], v2[1])]
         box_max = [max(v1[0], v2[0]), max(v1[1], v2[1])]
@@ -195,10 +247,10 @@ class Simulations:
             box_max[1] - box_min[1]) * self.window_h
         num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
         while i < num:
-            pos = [
-                ti.random() * (box_max[0] - box_min[0]) + box_min[0],
-                ti.random() * (box_max[1] - box_min[1]) + box_min[1]
-            ]
+            pos = np.array([
+                self.ran() * (box_max[0] - box_min[0]) + box_min[0],
+                self.ran() * (box_max[1] - box_min[1]) + box_min[1]
+            ])
             self.particles.append(self.particle(pos, velocity, color, t))
             i += 1
 
@@ -214,12 +266,14 @@ class Simulations:
         i = 0
         area = scanline.GetRectArea()
         num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
+        print(scanline.top, scanline.bottom, scanline.left, scanline.right)
         while i < num:
-            pos = [ti.random(), ti.random()]
-            x0 = pos[0] * self.window_w
-            y0 = pos[1] * self.window_h
+            pos = np.array([self.ran(), self.ran()])
+            x0 = pos[0] * (scanline.right - scanline.left) + scanline.left
+            y0 = pos[1] * (scanline.top - scanline.bottom) + scanline.bottom
             if y0 <= scanline.top and y0 >= scanline.bottom and x0 >= scanline.left and x0 <= scanline.right:
                 if scanline.mat_inside.get((int(x0), int(y0))):
+                    # print(x0, y0)
                     self.particles.append(
                         self.particle(pos, velocity, color, t))
                     i += 1
@@ -355,7 +409,7 @@ class FEM:
 
     def add_object_figure(self,
                           figure,
-                          t=MatterType['Solid'],
+                          t=MatterType['Plastic'],
                           velocity=(0.0, 0.0)):
         for k in range(self.NV):
             if self.point_in_polygon(figure, self.pos[k]):

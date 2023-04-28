@@ -23,7 +23,7 @@ class FigureType(Enum):
     # Del = 8
 
 
-MatterType = dict(NoType=0, Fluid=1, Jelly=2, Snow=3, Solid=4)
+MatterType = dict(NoType=0, Fluid=1, Jelly=2, Steel=3, Plastic=4)
 
 
 # @ti.data_oriented
@@ -35,13 +35,15 @@ class Minidraw_controller(QWidget):
         # self.ui = Ui_Minidraw_controller()
         # self.ui.setupUi(self)
 
+        self.window_h = self.height()
+        self.window_w = self.width()
         self.draw_status = False
         self.current_point = None
         self.usingFEM = False
         self.usingMPM = True
 
         self.current_line_color = Qt.white
-        self.current_line_width = 7
+        self.current_line_width = 3
         self.current_figure_type = FigureType.Curve
 
         self.figure_array = []
@@ -57,7 +59,8 @@ class Minidraw_controller(QWidget):
         self.is_drawing_polygon = False
         self.is_simulating = False
         self.fem_simulation = simulation.FEM()
-        self.taichi_simulation = simulation.Simulations()
+        self.taichi_simulation = simulation.Simulations(
+            self.window_w, self.window_h)
 
     def point_in_polygon(figure, point: QPoint):
         pt_x = point.x()
@@ -155,8 +158,6 @@ class Minidraw_controller(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        self.window_h = self.height()
-        self.window_w = self.width()
         min_size = min(self.window_h, self.window_w)
         self.window_h = self.window_w = min_size
 
@@ -191,7 +192,7 @@ class Minidraw_controller(QWidget):
                 painter.setPen(QPen(particle.c, 1))
                 painter.setBrush(QBrush(particle.c))
                 rectangle = QRect(particle.x[0] * self.window_w,
-                                  particle.x[1] * self.window_h, 4, 4)
+                                  particle.x[1] * self.window_h, 2, 2)
                 painter.drawEllipse(rectangle)
 
         elif self.usingFEM:
@@ -229,9 +230,9 @@ class Minidraw_controller(QWidget):
             #  blue: fluid
             figure_color = p_figure.get_color()
             if figure_color == Qt.black:
-                ptype = MatterType['Solid']
+                ptype = MatterType['Plastic']
             elif figure_color == Qt.white:
-                ptype = MatterType['Snow']
+                ptype = MatterType['Steel']
             elif figure_color == QColor(0xED553B):
                 ptype = MatterType['Jelly']
             else:
@@ -312,7 +313,6 @@ class Minidraw_controller(QWidget):
     def simulate(self):
         # 1. create objects and add them to particles
         self.add_objects()
-
         # 2. start simulation
         step = 0
         while True:
@@ -321,6 +321,7 @@ class Minidraw_controller(QWidget):
                 break
             if self.usingMPM:
                 self.taichi_simulation.substep()
+                print('step1')
 
             elif self.usingFEM:
                 self.fem_simulation.init_parameter()
