@@ -188,21 +188,48 @@ class Minidraw_controller(QWidget):
                     self.p_current_figure = None
 
         if self.usingMPM:
-            for particle in self.taichi_simulation.particles:
-                painter.setPen(QPen(particle.c, 1))
-                painter.setBrush(QBrush(particle.c))
-                rectangle = QRect(particle.x[0] * self.window_w,
-                                  particle.x[1] * self.window_h, 2, 2)
+            pos_n = self.taichi_simulation.x.to_numpy()
+            matr_n = self.taichi_simulation.material.to_numpy()
+            for i in range(self.taichi_simulation.n_particles):
+                if matr_n[i] == MatterType['NoType']:
+                    break
+                elif matr_n[i] == MatterType['Fluid']:
+                    color = Qt.blue
+                elif matr_n[i] == MatterType['Jelly']:
+                    color = QColor(0xED553B)
+                elif matr_n[i] == MatterType['Plastic']:
+                    color = Qt.black
+                elif matr_n[i] == MatterType['Steel']:
+                    color = Qt.white
+                painter.setPen(QPen(color, 1))
+                painter.setBrush(QBrush(color))
+                rectangle = QRect(pos_n[i][0] * self.window_w,
+                                  pos_n[i][1] * self.window_h, 2, 2)
                 painter.drawEllipse(rectangle)
 
         elif self.usingFEM:
             pos_n = self.fem_simulation.pos.to_numpy()
             node_f2v = self.fem_simulation.f2v.to_numpy()
-            for i in range(self.fem_simulation.NF):  #setting color and width
+            matr_n = self.fem_simulation.matr.to_numpy()
+            for i in range(self.fem_simulation.NF):
                 for j in range(3):
                     a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
-                    painter.drawLine(pos_n[a][0], pos_n[a][1], pos_n[b][0],
-                                     pos_n[b][1])
+                    if matr_n[a] == MatterType['NoType']:
+                        break
+                    elif matr_n[a] == MatterType['Fluid']:
+                        color = Qt.blue
+                    elif matr_n[a] == MatterType['Jelly']:
+                        color = QColor(0xED553B)
+                    elif matr_n[a] == MatterType['Plastic']:
+                        color = Qt.black
+                    elif matr_n[a] == MatterType['Steel']:
+                        color = Qt.white
+                    painter.setPen(QPen(color, 1))
+                    painter.setBrush(QBrush(color))
+                    painter.drawLine(pos_n[a][0] * self.window_w,
+                                     pos_n[a][1] * self.window_h,
+                                     pos_n[b][0] * self.window_w,
+                                     pos_n[b][1] * self.window_h)
 
     def add_objects(self):
         for i in range(len(self.figure_array)):
@@ -238,50 +265,50 @@ class Minidraw_controller(QWidget):
             else:
                 ptype = MatterType['Fluid']
 
-            p_points = p_figure.p_point_array
+            # p_points = p_figure.p_point_array
             if self.usingFEM:
                 self.fem_simulation.add_object_figure(p_figure, ptype)
             elif self.usingMPM:
-
+                self.taichi_simulation.add_object_figure(p_figure, ptype)
                 # get object shape and create object
                 # if figure type is rectangle
-                if isinstance(p_figure, Rect):
-                    assert len(p_points) == 2
-                    x0 = float(p_points[0].x()) / self.window_w
-                    y0 = float(p_points[0].y()) / self.window_h
-                    x1 = float(p_points[1].x()) / self.window_w
-                    y1 = float(p_points[1].y()) / self.window_h
+                # if isinstance(p_figure, Rect):
+                #     assert len(p_points) == 2
+                #     x0 = float(p_points[0].x()) / self.window_w
+                #     y0 = float(p_points[0].y()) / self.window_h
+                #     x1 = float(p_points[1].x()) / self.window_w
+                #     y1 = float(p_points[1].y()) / self.window_h
 
-                    self.taichi_simulation.add_object_rectangle([x0, y0],
-                                                                [x1, y1],
-                                                                figure_color,
-                                                                800, ptype)
+                #     self.taichi_simulation.add_object_rectangle([x0, y0],
+                #                                                 [x1, y1],
+                #                                                 figure_color,
+                #                                                 800, ptype)
 
-                # if figure type is polygon, triangle or free-hand
-                elif isinstance(p_figure, Polygon) or isinstance(
-                        p_figure, Triangle) or isinstance(p_figure, Curve):
-                    x0 = float(p_points[0].x()) / self.window_w
-                    y0 = float(p_points[0].y()) / self.window_h
-                    x1 = float(p_points[1].x()) / self.window_w
-                    y1 = float(p_points[1].y()) / self.window_h
+                # # if figure type is polygon, triangle or free-hand
+                # elif isinstance(p_figure, Polygon) or isinstance(
+                #         p_figure, Triangle) or isinstance(p_figure, Curve):
+                #     x0 = float(p_points[0].x()) / self.window_w
+                #     y0 = float(p_points[0].y()) / self.window_h
+                #     x1 = float(p_points[1].x()) / self.window_w
+                #     y1 = float(p_points[1].y()) / self.window_h
 
-                    self.taichi_simulation.add_object_polygon(
-                        p_figure, figure_color, 800, ptype)
+                #     self.taichi_simulation.add_object_polygon(
+                #         p_figure, figure_color, 800, ptype)
 
-                # if figure type is circle
-                elif isinstance(p_figure, Circle):
-                    p_points = p_figure.p_point_array
-                    assert len(p_points) == 2
-                    x0 = float(p_points[0].x()) / self.window_w
-                    y0 = float(p_points[0].y()) / self.window_h
-                    x1 = float(p_points[1].x()) / self.window_w
-                    y1 = float(p_points[1].y()) / self.window_h
+                # # if figure type is circle
+                # elif isinstance(p_figure, Circle):
+                #     p_points = p_figure.p_point_array
+                #     assert len(p_points) == 2
+                #     x0 = float(p_points[0].x()) / self.window_w
+                #     y0 = float(p_points[0].y()) / self.window_h
+                #     x1 = float(p_points[1].x()) / self.window_w
+                #     y1 = float(p_points[1].y()) / self.window_h
 
-                    self.taichi_simulation.add_object_circle([(x0 + x1) / 2,
-                                                              (y0 + y1) / 2],
-                                                             (x1 - x0) / 2,
-                                                             figure_color, 800,
-                                                             ptype)
+                #     self.taichi_simulation.add_object_circle([(x0 + x1) / 2,
+                #                                               (y0 + y1) / 2],
+                #                                              (x1 - x0) / 2,
+                #                                              figure_color, 800,
+                #                                              ptype)
 
         # insert figure_array to the end of figure_array_backup, NOTE: no need to clear figure_Array_backup here
         self.figure_array_backup.extend(self.figure_array)
