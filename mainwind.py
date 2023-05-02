@@ -4,6 +4,7 @@ from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtCore import Qt
 from maincontroller import FigureType, MatterType, Minidraw_controller
 from uimianwind import Ui_Minidraw
+import matplotlib.pyplot as plt
 
 
 class Minidraw(QMainWindow):
@@ -215,6 +216,11 @@ class Minidraw(QMainWindow):
         action_usingMPM.triggered.connect(self.mpm_simulation)
         self.Simulation_toolbar.addAction(action_usingMPM)
 
+        action_mesh_simul = QAction(QIcon("resources/mesh.png"), "add mesh",
+                                    self)
+        action_mesh_simul.triggered.connect(self.add_mesh_simu)
+        self.Simulation_toolbar.addAction(action_mesh_simul)
+
         action_pause_simul = QAction(QIcon("resources/pause.png"),
                                      "pause simulation", self)
         action_pause_simul.triggered.connect(self.pause_simulation)
@@ -291,6 +297,7 @@ class Minidraw(QMainWindow):
     def start_simulation(self):
         self.controller.is_simulating = True
         self.controller.simulate()
+        plt.ioff()
 
     def fem_simulation(self):
         self.controller.usingFEM = True
@@ -299,6 +306,12 @@ class Minidraw(QMainWindow):
     def mpm_simulation(self):
         self.controller.usingFEM = False
         self.controller.usingMPM = True
+
+    def add_mesh_simu(self):
+        if self.add_mesh_simu:
+            self.add_mesh_simu = False
+        else:
+            self.add_mesh_simu = True
 
     def pause_simulation(self):
         self.controller.is_simulating = False

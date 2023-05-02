@@ -4,7 +4,8 @@ import taichi as ti
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
 from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
 from PyQt5.QtWidgets import QWidget, QFileDialog
-
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
 import simulation
 
@@ -56,6 +57,7 @@ class Minidraw_controller(QWidget):
         self.isEdit = False
         self.isDel = False
 
+        self.add_mesh = False
         self.is_drawing_polygon = False
         self.is_simulating = False
         self.fem_simulation = simulation.FEM()
@@ -190,6 +192,7 @@ class Minidraw_controller(QWidget):
         if self.usingMPM:
             pos_n = self.taichi_simulation.x.to_numpy()
             matr_n = self.taichi_simulation.material.to_numpy()
+
             for i in range(self.taichi_simulation.n_particles):
                 if matr_n[i] == MatterType['NoType']:
                     break
@@ -342,13 +345,25 @@ class Minidraw_controller(QWidget):
         self.add_objects()
         # 2. start simulation
         step = 0
+        # count = 0
+        # if self.is_simulating and self.usingMPM:
+        #     fig, ax = plt.subplots()
+        #     ani = animation(fig,
+        #                     self.taichi_simulation.draw_force,
+        #                     count,
+        #                     interval=10,
+        #                     blit=True)
+        #     plt.show()
         while True:
             QCoreApplication.processEvents()  # response to new message
             if not self.is_simulating:
                 break
+            mngr = plt.get_current_fig_manager()
+            mngr.window.wm_geometry("+380+310")
+            plt.ion()
             if self.usingMPM:
+
                 self.taichi_simulation.substep()
-                print('step1')
 
             elif self.usingFEM:
                 self.fem_simulation.init_parameter()
@@ -358,6 +373,11 @@ class Minidraw_controller(QWidget):
             # 3. update frame, draw the particles in the window
             if step % int(self.frame_dt / self.dt) == 0:
                 self.update()
+                if self.usingFEM:
+                    pass
+                elif self.usingMPM:
+                    self.taichi_simulation.draw_force()
+                # count += 1
             step += 1
 
     def reset_simulation(self):

@@ -3,9 +3,13 @@ import math
 import taichi as ti
 import numpy as np
 import random
+import pyqtgraph as pg
+from pyqtgraph.Qt import QtCore
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
 from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
 from PyQt5.QtWidgets import QWidget, QFileDialog
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
 from scanline import CScanLine
@@ -61,6 +65,8 @@ class Simulations:
                                  shape=self.n_particles)  # position
         self.v = ti.Vector.field(2, dtype=float,
                                  shape=self.n_particles)  # velocity
+        self.stress = ti.Vector.field(2, dtype=float,
+                                      shape=self.n_particles)  # stress
         self.C = ti.Matrix.field(
             2, 2, dtype=float, shape=self.n_particles)  # affine velocity field
         self.F = ti.Matrix.field(
@@ -124,12 +130,12 @@ class Simulations:
             if self.material[p] == 1:
                 # Reset deformation gradient to avoid numerical instability
                 self.F[p] = ti.Matrix.identity(float, 2) * ti.sqrt(J)
-            stress = 2 * mu * (self.F[p] - U @ V.transpose()
-                               ) @ self.F[p].transpose() + ti.Matrix.identity(
-                                   float, 2) * la * J * (J - 1)
-            stress = (-self.dt * self.p_vol * 4 * self.inv_dx *
-                      self.inv_dx) * stress
-            affine = stress + self.p_mass * self.C[p]
+            self.stress[p] = 2 * mu * (
+                self.F[p] - U @ V.transpose()) @ self.F[p].transpose(
+                ) + ti.Matrix.identity(float, 2) * la * J * (J - 1)
+            self.stress[p] = (-self.dt * self.p_vol * 4 * self.inv_dx *
+                              self.inv_dx) * self.stress[p]
+            affine = self.stress[p] + self.p_mass * self.C[p]
             for i, j in ti.static(ti.ndrange(3, 3)):
                 # Loop over 3x3 grid node neighborhood
                 offset = ti.Vector([i, j])
@@ -196,6 +202,39 @@ class Simulations:
                     if x <= pt_x:
                         count += 1
             return count % 2 == 1
+
+    @ti.kernel
+    def caculate_force(self):
+        z = ti.Vector.field(2,
+                            dtype=float,
+                            shape=self.n_particles / self.grid_particle_ratio)
+        self.force_z = ti.Vector.field(1,
+                                       dtype=float,
+                                       shape=self.n_particles /
+                                       self.grid_particle_ratio)
+        max = 0
+        for i in range(self.n_particles / self.grid_particle_ratio):
+            for j in range(self.grid_particle_ratio):
+                if self.material[i + j] == MatterType['NoType']:
+                    z[i] = [0, 0]
+                    break
+                z[i] = z[i] + self.stress[i + j]
+            self.force_z[i] = z[i].norm() / self.grid_particle_ratio
+            if max < self.force_z[i]:
+                max = self.force_z[i]
+        return max
+
+    def draw_force(self):
+        setting_x = np.linspace(-1.0, 1.0, self.n_grid)
+        setting_y = np.linspace(-1.0, 1.0, self.n_grid)
+        self.caculate_force()
+        force_n = self.force_z.to_numpy()
+        force_n = force_n.reshape(self.n_grid, self.n_grid).transpose()
+        plt.contourf(setting_x,
+                     setting_y,
+                     force_n,
+                     levels=100,
+                     cmap=plt.get_cmap('Spectral'))
 
     # @ti.data_oriented
     # class particle:
