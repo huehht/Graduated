@@ -340,45 +340,29 @@ class Minidraw_controller(QWidget):
             points.setY(points.y() + point_new.y() - point_old.y())
             return self.status_stack[-1][1]
 
+    def editing_simulate(self):
+        QCoreApplication.processEvents()  # response to new message
+        if self.usingMPM:
+
+            self.taichi_simulation.substep()
+
+        elif self.usingFEM:
+            self.fem_simulation.init_parameter()
+            self.fem_simulation.update_force()
+            self.fem_simulation.advance()
+
+            # 3. update frame, draw the particles in the window
+        if self.step % int(self.frame_dt / self.dt) == 0:
+            self.update()
+        self.step += 1
+
     def simulate(self):
         # 1. create objects and add them to particles
         self.add_objects()
         # 2. start simulation
-        step = 0
-        # count = 0
-        # if self.is_simulating and self.usingMPM:
-        #     fig, ax = plt.subplots()
-        #     ani = animation(fig,
-        #                     self.taichi_simulation.draw_force,
-        #                     count,
-        #                     interval=10,
-        #                     blit=True)
-        #     plt.show()
+        self.step = 0
         while True:
-            QCoreApplication.processEvents()  # response to new message
-            if not self.is_simulating:
-                break
-            mngr = plt.get_current_fig_manager()
-            mngr.window.wm_geometry("+380+310")
-            plt.ion()
-            if self.usingMPM:
-
-                self.taichi_simulation.substep()
-
-            elif self.usingFEM:
-                self.fem_simulation.init_parameter()
-                self.fem_simulation.update_force()
-                self.fem_simulation.advance()
-
-            # 3. update frame, draw the particles in the window
-            if step % int(self.frame_dt / self.dt) == 0:
-                self.update()
-                if self.usingFEM:
-                    pass
-                elif self.usingMPM:
-                    self.taichi_simulation.draw_force()
-                # count += 1
-            step += 1
+            self.editing_simulate()
 
     def reset_simulation(self):
         self.is_simulating = False

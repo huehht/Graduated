@@ -5,99 +5,112 @@ Demonstrates very basic use of PColorMeshItem
 import time
 
 import numpy as np
-
+import sys
+from PyQt5.QtWidgets import QApplication, QWidget
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
+from PyQt5.QtCore import QTimer, QDateTime
 
 
-def plot():
-    app = pg.mkQApp("PColorMesh Example")
+class plots:
 
-    ## Create window with GraphicsView widget
-    win = pg.GraphicsLayoutWidget()
-    win.show()  ## show widget alone in its own window
-    win.setWindowTitle('pyqtgraph example: pColorMeshItem')
-    view_consistent_scale = win.addPlot(0,
-                                        0,
-                                        1,
-                                        1,
-                                        title="Consistent colorscheme",
-                                        enableMenu=False)
+    def __init__(self):
+        self.pl()
+        # pg.exec()s
 
-    ## Create data
+    def pl(self):
+        self.app = pg.mkQApp("PColorMesh Example")
 
-    # To enhance the non-grid meshing, we randomize the polygon vertices per and
-    # certain amount
-    randomness = 5
+        ## Create window with GraphicsView widget
+        self.win = pg.GraphicsLayoutWidget()
+        self.win.show()  ## show widget alone in its own window
+        self.win.setWindowTitle('pyqtgraph example: pColorMeshItem')
+        self.view_consistent_scale = self.win.addPlot(
+            0, 0, 1, 1, title="Consistent colorscheme", enableMenu=False)
 
-    # x and y being the vertices of the polygons, they share the same shape
-    # However the shape can be different in both dimension
-    xn = 50  # nb points along x
-    yn = 40  # nb points along y
+        ## Create data
 
-    x = np.repeat(np.arange(0, xn), yn).reshape(xn, yn)\
-        + np.random.random((xn, yn))*randomness
-    y = np.tile(np.arange(0, yn), xn).reshape(xn, yn)\
-        + np.random.random((xn, yn))*randomness
-    x.sort(axis=0)
-    y.sort(axis=0)
+        # To enhance the non-grid meshing, we randomize the polygon vertices per and
+        # certain amount
+        randomness = 5
 
-    # z being the color of the polygons its shape must be decreased by one in each dimension
-    z = np.exp(-(x * xn)**2 / 1000)[:-1, :-1]
+        # x and y being the vertices of the polygons, they share the same shape
+        # However the shape can be different in both dimension
+        self.xn = 50  # nb points along x
+        yn = 40  # nb points along y
 
-    ## Create autoscaling image item
-    edgecolors = None
-    antialiasing = False
-    cmap = pg.colormap.get('viridis')
-    levels = (-2, 2
-              )  # Will be overwritten unless enableAutoLevels is set to False
+        self.x = np.repeat(np.arange(0, self.xn), yn).reshape(self.xn, yn)\
+            + np.random.random((self.xn, yn))*randomness
+        self.y = np.tile(np.arange(0, yn), self.xn).reshape(self.xn, yn)\
+            + np.random.random((self.xn, yn))*randomness
+        self.x.sort(axis=0)
+        self.y.sort(axis=0)
+        # z being the color of the polygons its shape must be decreased by one in each dimension
+        self.z = np.exp(-(self.x * self.xn)**2 / 1000)[:-1, :-1]
 
-    # Create image item with consistent colors and an interactive colorbar
-    pcmi_consistent = pg.PColorMeshItem(edgecolors=edgecolors,
-                                        antialiasing=antialiasing,
-                                        colorMap=cmap,
-                                        levels=levels,
-                                        enableAutoLevels=False)
-    view_consistent_scale.addItem(pcmi_consistent)
+        ## Create autoscaling image item
+        edgecolors = None
+        antialiasing = False
+        cmap = pg.colormap.get('viridis')
+        levels = (
+            -2, 2
+        )  # Will be overwritten unless enableAutoLevels is set to False
 
-    # Add colorbar
-    bar_static = pg.ColorBarItem(label="Z value [arbitrary unit]",
-                                 interactive=True,
-                                 rounding=0.1)
-    bar_static.setImageItem([pcmi_consistent])
-    win.addItem(bar_static, 0, 1, 1, 1)
+        # Create image item with consistent colors and an interactive colorbar
+        self.pcmi_consistent = pg.PColorMeshItem(edgecolors=edgecolors,
+                                                 antialiasing=antialiasing,
+                                                 colorMap=cmap,
+                                                 levels=levels,
+                                                 enableAutoLevels=False)
+        self.view_consistent_scale.addItem(self.pcmi_consistent)
 
-    # Add timing label to the autoscaling view
-    textitem = pg.TextItem(anchor=(1, 0))
+        # Add colorbar
+        self.bar_static = pg.ColorBarItem(label="Z value [arbitrary unit]",
+                                          interactive=True,
+                                          rounding=0.1)
+        self.bar_static.setImageItem([self.pcmi_consistent])
+        self.win.addItem(self.bar_static, 0, 1, 1, 1)
 
-    textitem.setPos(0, 10)
+        # Add timing label to the autoscaling view
+        self.textitem = pg.TextItem(anchor=(1, 0))
 
-    timer = QtCore.QTimer()
-    timer.setSingleShot(True)
-    pcmi_consistent.setData(x, y, z)
-    pg.exec()
-    # not using QTimer.singleShot() because of persistence on PyQt. see PR #1605
+        self.textitem.setPos(0, 10)
+        self.timer = QTimer()
+        # self.timer.setSingleShot(True)
+        self.timer.start(100)
+        self.timer.timeout.connect(self.updated)
+        # self.updated()
+        # timer.timeout.connect(updateData)
+        # updateData()
+        # not using QTimer.singleShot() because of persistence on PyQt. see PR #1605
 
+    def updated(self):
+        self.z = np.exp(-(self.x * self.xn)**2 / (np.random.random() + 1) /
+                        10)[:-1, :-1]
+        self.pcmi_consistent.setData(self.x, self.y, self.z)
+        print(1)
 
-# def updateData():
-#     global i
-#     global textpos
+    #     ## Display the new data se
+    #     self.pcmi_consistent.setData(new_x, new_y, new_z)
+    #     t2 = time.perf_counter()
 
-#     ## Display the new data se
-#     pcmi_consistent.setData(new_x, new_y, new_z)
-#     t2 = time.perf_counter()
+    #     i += wave_speed
 
-#     i += wave_speed
+    #     textitem.setText(f'{(t2 - t1)*1000:.1f} ms')
 
-#     textitem.setText(f'{(t2 - t1)*1000:.1f} ms')
+    #     # cap update rate at fps
+    #     delay = max(1000 / fps - (t2 - t0), 0)
+    #     timer.start(int(delay))
 
-#     # cap update rate at fps
-#     delay = max(1000 / fps - (t2 - t0), 0)
-#     timer.start(int(delay))
-
-# timer.timeout.connect(updateData)
-# updateData()
 
 if __name__ == '__main__':
-    plot()
-    print(1)
+
+    app = QApplication(sys.argv)
+    p = plots()
+    w = QWidget()
+    w.resize(250, 150)
+    w.move(300, 300)
+    w.setWindowTitle('Simple')
+    w.show()
+    # pg.exec()
+    sys.exit(app.exec_())
