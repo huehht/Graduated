@@ -46,7 +46,9 @@ class Simulations:
         self.p_vol, self.p_rho = (self.dx * 0.5)**2, 1
         self.p_mass = self.p_vol * self.p_rho
         E, nu = 5e3, 0.2  # Young's modulus and Poisson's ratio
-        self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+        self.mu_0 = ti.field(ti.f32, shape=())
+        self.lambda_0 = ti.field(ti.f32, shape=())
+        self.mu_0[None], self.lambda_0[None] = E / (2 * (1 + nu)), E * nu / (
             (1 + nu) * (1 - 2 * nu))  # Lame parameters
         self.grid_v = ti.Vector.field(
             2, dtype=float,
@@ -61,12 +63,19 @@ class Simulations:
         self.gravity[None] = [0, -1]
         self.window_w = w
         self.window_h = h
-        self.x = ti.Vector.field(2, dtype=float,
-                                 shape=self.n_particles)  # position
-        self.v = ti.Vector.field(2, dtype=float,
-                                 shape=self.n_particles)  # velocity
-        self.stress = ti.Vector.field(2, dtype=float,
-                                      shape=self.n_particles)  # stress
+        self.x = ti.Vector.field(2,
+                                 dtype=float,
+                                 shape=self.n_particles,
+                                 needs_grad=True)  # position
+        self.v = ti.Vector.field(2,
+                                 dtype=float,
+                                 shape=self.n_particles,
+                                 needs_grad=True)  # velocity
+        self.accl = ti.Vector.field(2, dtype=float, shape=self.n_particles)
+        # self.stress = ti.Vector.field(2,
+        #                               2,
+        #                               dtype=float,
+        #                               shape=self.n_particles)  # stress
         self.C = ti.Matrix.field(
             2, 2, dtype=float, shape=self.n_particles)  # affine velocity field
         self.F = ti.Matrix.field(
@@ -91,6 +100,14 @@ class Simulations:
             self.F[i] = ti.Matrix([[1, 0], [0, 1]])
             self.Jp[i] = 1
             self.C[i] = ti.Matrix.zero(float, 2, 2)
+            self.accl[i] = [0, 0]
+
+    @ti.func
+    def reset_mu_lam(self, E: ti.f32, nu: ti.f32):
+        # self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+        #     (1 + nu) * (1 - 2 * nu))  # Lame parameters
+        self.mu_0[None] = 1
+        self.lambda_0[None] = 1
 
     @ti.kernel
     def substep(self):
@@ -108,16 +125,18 @@ class Simulations:
             # Hardening coefficient: snow gets harder when compressed
             h = ti.max(0.1, ti.min(5, ti.exp(10 * (1.0 - self.Jp[p]))))
             if self.material[p] == 3:
-                E, nu = 2e4, 0.3  # Young's modulus and Poisson's ratio
-                self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
-                    (1 + nu) * (1 - 2 * nu))  # Lame parameters
+                self.reset_mu_lam(2e4, 0.3)
+                # E, nu = 2e4, 0.3  # Young's modulus and Poisson's ratio
+                # self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+                #     (1 + nu) * (1 - 2 * nu))  # Lame parameters
             elif self.material[p] == 4:
-                E, nu = 7e2, 0.4  # Young's modulus and Poisson's ratio
-                self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
-                    (1 + nu) * (1 - 2 * nu))  # Lame parameters
+                self.reset_mu_lam(7e2, 0.4)
+                # E, nu = 7e2, 0.4  # Young's modulus and Poisson's ratio
+                # self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
+                #     (1 + nu) * (1 - 2 * nu))  # Lame parameters
             elif self.material[p] == 2:  # jelly, make it softer
                 h = 0.3
-            mu, la = self.mu_0 * h, self.lambda_0 * h
+            mu, la = self.mu_0[None] * h, self.lambda_0[None] * h
             if self.material[p] == 1:  # liquid
                 mu = 0.0
             U, sig, V = ti.svd(self.F[p])
@@ -130,12 +149,12 @@ class Simulations:
             if self.material[p] == 1:
                 # Reset deformation gradient to avoid numerical instability
                 self.F[p] = ti.Matrix.identity(float, 2) * ti.sqrt(J)
-            self.stress[p] = 2 * mu * (
-                self.F[p] - U @ V.transpose()) @ self.F[p].transpose(
-                ) + ti.Matrix.identity(float, 2) * la * J * (J - 1)
-            self.stress[p] = (-self.dt * self.p_vol * 4 * self.inv_dx *
-                              self.inv_dx) * self.stress[p]
-            affine = self.stress[p] + self.p_mass * self.C[p]
+            stress = 2 * mu * (self.F[p] - U @ V.transpose()
+                               ) @ self.F[p].transpose() + ti.Matrix.identity(
+                                   float, 2) * la * J * (J - 1)
+            stress = (-self.dt * self.p_vol * 4 * self.inv_dx *
+                      self.inv_dx) * stress
+            affine = stress + self.p_mass * self.C[p]
             for i, j in ti.static(ti.ndrange(3, 3)):
                 # Loop over 3x3 grid node neighborhood
                 offset = ti.Vector([i, j])
@@ -174,12 +193,42 @@ class Simulations:
                 weight = w[i][0] * w[j][1]
                 new_v += weight * g_v
                 new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
+            self.accl[p] = self.v[p] - new_v
             self.v[p], self.C[p] = new_v, new_C
             self.x[p] += self.dt * self.v[p]  # advection
 
-    def point_in_polygon(figure, point):
-        pt_x = point[0]
-        pt_y = point[1]
+    # @ti.func
+    def point_in_rect(self, figure: ti.template(), pt_x, pt_y):
+        return pt_x <= ti.max(figure.start_x, figure.end_x) and pt_x >= ti.min(
+            figure.start_x, figure.end_x) and pt_y <= ti.max(
+                figure.start_y, figure.end_y) and pt_y >= ti.min(
+                    figure.start_y, figure.end_y)
+
+    # @ti.func
+    def point_in_circle(self, figure: ti.template(), pt_x, pt_y):
+        radius = abs(figure.start_x - figure.end_x)
+        center_x = (figure.start_x + figure.end_x) / 2
+        center_y = (figure.start_y + figure.end_y) / 2
+        return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
+
+    # @ti.func
+    def point_in_poly(self, figure: ti.template(), pt_x, pt_y):
+        # points = figure.p_point_array
+        nums = len(figure.p_point_array)
+        count = 0
+        for i in range(nums):
+            x1, y1 = figure.p_point_array[i].x(), figure.p_point_array[i].y()
+            x2, y2 = figure.p_point_array[
+                (i + 1) % nums].x(), figure.p_point_array[(i + 1) % nums].y()
+            if ti.min(y1, y2) < pt_y <= ti.max(y1, y2):
+                x = (pt_y - y1) * (x2 - x1) / (y2 - y1) + x1
+                if x <= pt_x:
+                    count += 1
+        return count % 2 == 1
+
+    def point_in_polygon(self, figure: ti.template(), pt_x, pt_y):
+        # pt_x = point[0]
+        # pt_y = point[1]
         if isinstance(figure, Rect):
             return pt_x <= max(figure.start_x, figure.end_x) and pt_x >= min(
                 figure.start_x, figure.end_x) and pt_y <= max(
@@ -218,23 +267,27 @@ class Simulations:
                 if self.material[i + j] == MatterType['NoType']:
                     z[i] = [0, 0]
                     break
-                z[i] = z[i] + self.stress[i + j]
+                z[i] = z[i] + self.accl[i + j]
             self.force_z[i] = z[i].norm() / self.grid_particle_ratio
             if max < self.force_z[i]:
                 max = self.force_z[i]
+        self.force_n = self.force_z.to_numpy().reshape(
+            self.n_grid, self.n_grid).transpose()
+        # self.force_n = self.force_n.reshape(self.n_grid,
+        #                                     self.n_grid).transpose()
         return max
 
-    def draw_force(self):
-        setting_x = np.linspace(-1.0, 1.0, self.n_grid)
-        setting_y = np.linspace(-1.0, 1.0, self.n_grid)
-        self.caculate_force()
-        force_n = self.force_z.to_numpy()
-        force_n = force_n.reshape(self.n_grid, self.n_grid).transpose()
-        plt.contourf(setting_x,
-                     setting_y,
-                     force_n,
-                     levels=100,
-                     cmap=plt.get_cmap('Spectral'))
+    # def draw_force(self):
+    #     setting_x = np.linspace(-1.0, 1.0, self.n_grid)
+    #     setting_y = np.linspace(-1.0, 1.0, self.n_grid)
+    #     self.caculate_force()
+    #     force_n = self.force_z.to_numpy()
+    #     force_n = force_n.reshape(self.n_grid, self.n_grid).transpose()
+    #     plt.contourf(setting_x,
+    #                  setting_y,
+    #                  force_n,
+    #                  levels=100,
+    #                  cmap=plt.get_cmap('Spectral'))
 
     # @ti.data_oriented
     # class particle:
@@ -376,9 +429,16 @@ class Simulations:
     @ti.kernel
     def add_object_figure(self, figure: ti.template(), t: int):
         for k in range(self.n_particles):
-            if self.point_in_polygon(figure, self.x[k]):
-                self.material[k] = t
-                # self.v[k] = velocity
+            if isinstance(figure, Rect):
+                if self.point_in_rect(figure, self.x[k][0], self.x[k][1]):
+                    self.material[k] = t
+                    # self.v[k] = velocity
+            elif isinstance(figure, Circle):
+                if self.point_in_circle(figure, self.x[k][0], self.x[k][1]):
+                    self.material[k] = t
+            else:
+                if self.point_in_poly(figure, self.x[k][0], self.x[k][1]):
+                    self.material[k] = t
 
     # @ti.kernel
     def add_object_circle(self,

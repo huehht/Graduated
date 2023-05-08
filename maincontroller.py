@@ -4,7 +4,10 @@ import taichi as ti
 from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
 from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
 from PyQt5.QtWidgets import QWidget, QFileDialog
+from PyQt5.QtCore import QTimer
+import pyqtgraph as pg
 import matplotlib.pyplot as plt
+import numpy as np
 import matplotlib.animation as animation
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
 import simulation
@@ -35,6 +38,8 @@ class Minidraw_controller(QWidget):
 
         # self.ui = Ui_Minidraw_controller()
         # self.ui.setupUi(self)
+        self.dt = 1e-4
+        self.frame_dt = 2e-3
 
         self.window_h = self.height()
         self.window_w = self.width()
@@ -56,6 +61,7 @@ class Minidraw_controller(QWidget):
         self.isAdding = True
         self.isEdit = False
         self.isDel = False
+        self.isDraw = False
 
         self.add_mesh = False
         self.is_drawing_polygon = False
@@ -354,13 +360,58 @@ class Minidraw_controller(QWidget):
             # 3. update frame, draw the particles in the window
         if self.step % int(self.frame_dt / self.dt) == 0:
             self.update()
+            self.taichi_simulation.caculate_force()
+            self.isDraw = True
         self.step += 1
+
+    def pyqtg_draw(self):
+        if self.isDraw:
+            self.pcmi_consistent.setData(self.x, self.y,
+                                         self.taichi_simulation.force_n)
 
     def simulate(self):
         # 1. create objects and add them to particles
         self.add_objects()
-        # 2. start simulation
+
         self.step = 0
+        if self.is_simulating:
+            self.app = pg.mkQApp("Force Visualization")
+            self.win = pg.GraphicsLayoutWidget()
+            self.win.show()  ## show widget alone in its own window
+            self.win.setWindowTitle('Force Visualization')
+            self.view_consistent_scale = self.win.addPlot(
+                0, 0, 1, 1, title="Stress of the model", enableMenu=False)
+            n = self.taichi_simulation.n_grid
+            self.x = np.repeat(np.arange(0, n), n).reshape(n, n)
+            self.y = np.tile(np.arange(0, n), n).reshape(n, n)
+            self.x.sort(axis=0)
+            self.y.sort(axis=0)
+            edgecolors = None
+            antialiasing = True
+            cmap = pg.colormap.get('viridis')
+            levels = (
+                0, 5
+            )  # Will be overwritten unless enableAutoLevels is set to False
+
+            # Create image item with consistent colors and an interactive colorbar
+            self.pcmi_consistent = pg.PColorMeshItem(edgecolors=edgecolors,
+                                                     antialiasing=antialiasing,
+                                                     colorMap=cmap,
+                                                     levels=levels,
+                                                     enableAutoLevels=True)
+            self.view_consistent_scale.addItem(self.pcmi_consistent)
+            self.bar_static = pg.ColorBarItem(
+                label="stress",
+                #   interactive=True,
+                rounding=0.1)
+            self.bar_static.setImageItem([self.pcmi_consistent])
+            self.win.addItem(self.bar_static, 0, 1, 1, 1)
+            self.timer = QTimer()
+            self.timer.start(40)
+            self.timer.timeout.connect(self.pyqtg_draw)
+
+        # 2. start simulation
+
         while True:
             self.editing_simulate()
 

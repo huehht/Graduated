@@ -50,7 +50,7 @@ class plots:
 
         ## Create autoscaling image item
         edgecolors = None
-        antialiasing = False
+        antialiasing = True
         cmap = pg.colormap.get('viridis')
         levels = (
             -2, 2
@@ -67,14 +67,14 @@ class plots:
         # Add colorbar
         self.bar_static = pg.ColorBarItem(label="Z value [arbitrary unit]",
                                           interactive=True,
-                                          rounding=0.1)
+                                          rounding=0.2)
         self.bar_static.setImageItem([self.pcmi_consistent])
         self.win.addItem(self.bar_static, 0, 1, 1, 1)
 
         # Add timing label to the autoscaling view
-        self.textitem = pg.TextItem(anchor=(1, 0))
+        # self.textitem = pg.TextItem(anchor=(1, 0))
 
-        self.textitem.setPos(0, 10)
+        # self.textitem.setPos(0, 10)
         self.timer = QTimer()
         # self.timer.setSingleShot(True)
         self.timer.start(100)
@@ -88,7 +88,6 @@ class plots:
         self.z = np.exp(-(self.x * self.xn)**2 / (np.random.random() + 1) /
                         10)[:-1, :-1]
         self.pcmi_consistent.setData(self.x, self.y, self.z)
-        print(1)
 
     #     ## Display the new data se
     #     self.pcmi_consistent.setData(new_x, new_y, new_z)
@@ -107,10 +106,10 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     p = plots()
-    w = QWidget()
-    w.resize(250, 150)
-    w.move(300, 300)
-    w.setWindowTitle('Simple')
-    w.show()
+    # w = QWidget()
+    # w.resize(250, 150)
+    # w.move(300, 300)
+    # w.setWindowTitle('Simple')
+    # w.show()
     # pg.exec()
     sys.exit(app.exec_())

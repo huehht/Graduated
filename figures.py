@@ -7,6 +7,7 @@ class Figure:
 
     def __init__(self, start_point=QPoint()):
         self.p_point_array = QPolygonF()
+        self.p_point_array << start_point
         self.line_width = 1
         self.line_color = QColor(0, 0, 0)
         self.start_x = start_point.x()

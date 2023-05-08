@@ -13,7 +13,7 @@ NF = 2 * N**2  # number of faces
 NV = (N + 1)**2  # number of vertices
 E = gui.slider('Young\'s modulus', 1e4, 1e6, step=1e4)
 E.value, nu = 4e4, 0.2  # Young's modulus and Poisson's ratio
-global mu, lam
+# global mu, lam
 mu, lam = E.value / 2 / (1 + nu), E.value * nu / (1 + nu) / (1 - 2 * nu)
 ball_pos, ball_radius = ti.Vector([0.5, 0.0]), 0.16
 gravity = ti.Vector([0, -40])
@@ -108,7 +108,6 @@ def draw_line():
             mouse1_x, mouse1_y = gui.get_cursor_pos()
             print(mouse0_x, mouse0_y)
             print(mouse1_x, mouse1_y)
-            print(1)
     # gui.line((mouse0_x, mouse0_y), (mouse1_x, mouse1_y),
     #          radius=1,
     #          color=0x4FB99F)

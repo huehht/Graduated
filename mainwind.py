@@ -15,7 +15,7 @@ class Minidraw(QMainWindow):
         self.ui.setupUi(self)
         self.controller = Minidraw_controller()
         self.setCentralWidget(self.controller)
-        self.setWindowTitle("Qtaichi")  # add title
+        self.setWindowTitle("Simulation")  # add title
         self.setWindowIcon(QIcon(":/resources/icon.png"))  # add icon
 
         self.create_toolbar()
@@ -297,7 +297,6 @@ class Minidraw(QMainWindow):
     def start_simulation(self):
         self.controller.is_simulating = True
         self.controller.simulate()
-        plt.ioff()
 
     def fem_simulation(self):
         self.controller.usingFEM = True
