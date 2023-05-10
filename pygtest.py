@@ -87,6 +87,8 @@ class plots:
     def updated(self):
         self.z = np.exp(-(self.x * self.xn)**2 / (np.random.random() + 1) /
                         10)[:-1, :-1]
+        print(self.x)
+        print(self.z)
         self.pcmi_consistent.setData(self.x, self.y, self.z)
 
     #     ## Display the new data se

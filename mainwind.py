@@ -80,13 +80,13 @@ class Minidraw(QMainWindow):
         self.controller.current_figure_type = FigureType.Ellipse
         self.controller.isAdding = True
 
-    def set_figure_tool_tri(self):
-        self.controller.current_figure_type = FigureType.Triangle
-        self.controller.isAdding = True
+    # def set_figure_tool_tri(self):
+    #     self.controller.current_figure_type = FigureType.Triangle
+    #     self.controller.isAdding = True
 
-    def set_figure_tool_poly(self):
-        self.controller.current_figure_type = FigureType.Polygon
-        self.controller.isAdding = True
+    # def set_figure_tool_poly(self):
+    #     self.controller.current_figure_type = FigureType.Polygon
+    #     self.controller.isAdding = True
 
     def set_figure_tool_del(self):
         self.controller.isAdding = False
@@ -157,16 +157,16 @@ class Minidraw(QMainWindow):
         self.figure_toolbar.addAction(choose_rect_act)
 
         # button for triangle
-        choose_tri_act = QAction(QIcon("resources/tri_icon.png"),
-                                 "triangle tool", self)
-        choose_tri_act.triggered.connect(self.set_figure_tool_tri)
-        self.figure_toolbar.addAction(choose_tri_act)
+        # choose_tri_act = QAction(QIcon("resources/tri_icon.png"),
+        #                          "triangle tool", self)
+        # choose_tri_act.triggered.connect(self.set_figure_tool_tri)
+        # self.figure_toolbar.addAction(choose_tri_act)
 
         # button for polygon
-        choose_poly_act = QAction(QIcon("resources/polygon_icon.png"),
-                                  "poly tool", self)
-        choose_poly_act.triggered.connect(self.set_figure_tool_poly)
-        self.figure_toolbar.addAction(choose_poly_act)
+        # choose_poly_act = QAction(QIcon("resources/polygon_icon.png"),
+        #                           "poly tool", self)
+        # choose_poly_act.triggered.connect(self.set_figure_tool_poly)
+        # self.figure_toolbar.addAction(choose_poly_act)
 
         # button for delete
         action_del = QAction(QIcon("resources/del.png"), "delete element",

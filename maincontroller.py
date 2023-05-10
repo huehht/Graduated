@@ -201,7 +201,7 @@ class Minidraw_controller(QWidget):
 
             for i in range(self.taichi_simulation.n_particles):
                 if matr_n[i] == MatterType['NoType']:
-                    break
+                    continue
                 elif matr_n[i] == MatterType['Fluid']:
                     color = Qt.blue
                 elif matr_n[i] == MatterType['Jelly']:
@@ -210,6 +210,7 @@ class Minidraw_controller(QWidget):
                     color = Qt.black
                 elif matr_n[i] == MatterType['Steel']:
                     color = Qt.white
+                print(pos_n[i][0], pos_n[i][1])
                 painter.setPen(QPen(color, 1))
                 painter.setBrush(QBrush(color))
                 rectangle = QRect(pos_n[i][0] * self.window_w,
@@ -276,7 +277,8 @@ class Minidraw_controller(QWidget):
 
             # p_points = p_figure.p_point_array
             if self.usingFEM:
-                self.fem_simulation.add_object_figure(p_figure, ptype)
+                if isinstance(p_figure, Rect):
+                    self.fem_simulation.add_object_figure(p_figure, ptype)
             elif self.usingMPM:
                 self.taichi_simulation.add_object_figure(p_figure, ptype)
                 # get object shape and create object
@@ -361,6 +363,7 @@ class Minidraw_controller(QWidget):
         if self.step % int(self.frame_dt / self.dt) == 0:
             self.update()
             self.taichi_simulation.caculate_force()
+            self.taichi_simulation.force_setting()
             self.isDraw = True
         self.step += 1
 
@@ -381,7 +384,7 @@ class Minidraw_controller(QWidget):
             self.win.setWindowTitle('Force Visualization')
             self.view_consistent_scale = self.win.addPlot(
                 0, 0, 1, 1, title="Stress of the model", enableMenu=False)
-            n = self.taichi_simulation.n_grid
+            n = self.taichi_simulation.n_grid + 1
             self.x = np.repeat(np.arange(0, n), n).reshape(n, n)
             self.y = np.tile(np.arange(0, n), n).reshape(n, n)
             self.x.sort(axis=0)
@@ -407,11 +410,11 @@ class Minidraw_controller(QWidget):
             self.bar_static.setImageItem([self.pcmi_consistent])
             self.win.addItem(self.bar_static, 0, 1, 1, 1)
             self.timer = QTimer()
-            self.timer.start(40)
+            self.timer.start(1)
             self.timer.timeout.connect(self.pyqtg_draw)
 
         # 2. start simulation
-
+        self.taichi_simulation.reset()
         while True:
             self.editing_simulate()
 

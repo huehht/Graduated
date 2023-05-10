@@ -38,10 +38,12 @@ class Simulations:
     # @ti.kernel
     def __init__(self, w, h) -> None:
         quality = 1  # Use a larger value for higher-res simulations
-        self.n_grid = 128 * quality
-        self.n_particles = 128 * 128 * 400 * quality**2
-        self.grid_particle_ratio = 400
+        self.n_grid = 8 * quality
+        self.n_particles = 8 * 8 * 20 * quality**2
+        self.grid_particle_ratio = 20
         self.dx, self.inv_dx = 1 / self.n_grid, float(self.n_grid)
+        # self.n_p2gs = self.n_particles / self.grid_particle_ratio
+        self.n_p2gs = 8 * 8 * quality**2
         self.dt = 1e-4 / quality
         self.p_vol, self.p_rho = (self.dx * 0.5)**2, 1
         self.p_mass = self.p_vol * self.p_rho
@@ -72,6 +74,8 @@ class Simulations:
                                  shape=self.n_particles,
                                  needs_grad=True)  # velocity
         self.accl = ti.Vector.field(2, dtype=float, shape=self.n_particles)
+        self.z = ti.Vector.field(2, dtype=float, shape=self.n_p2gs)
+        self.force_z = ti.field(dtype=float, shape=self.n_p2gs)
         # self.stress = ti.Vector.field(2,
         #                               2,
         #                               dtype=float,
@@ -199,6 +203,8 @@ class Simulations:
 
     # @ti.func
     def point_in_rect(self, figure: ti.template(), pt_x, pt_y):
+        print(pt_x)
+        print(pt_y)
         return pt_x <= ti.max(figure.start_x, figure.end_x) and pt_x >= ti.min(
             figure.start_x, figure.end_x) and pt_y <= ti.max(
                 figure.start_y, figure.end_y) and pt_y >= ti.min(
@@ -212,7 +218,7 @@ class Simulations:
         return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
 
     # @ti.func
-    def point_in_poly(self, figure: ti.template(), pt_x, pt_y):
+    def point_in_poly(self, figure, pt_x, pt_y):
         # points = figure.p_point_array
         nums = len(figure.p_point_array)
         count = 0
@@ -254,28 +260,19 @@ class Simulations:
 
     @ti.kernel
     def caculate_force(self):
-        z = ti.Vector.field(2,
-                            dtype=float,
-                            shape=self.n_particles / self.grid_particle_ratio)
-        self.force_z = ti.Vector.field(1,
-                                       dtype=float,
-                                       shape=self.n_particles /
-                                       self.grid_particle_ratio)
-        max = 0
         for i in range(self.n_particles / self.grid_particle_ratio):
+            self.z[i] = [0, 0]
             for j in range(self.grid_particle_ratio):
                 if self.material[i + j] == MatterType['NoType']:
-                    z[i] = [0, 0]
                     break
-                z[i] = z[i] + self.accl[i + j]
-            self.force_z[i] = z[i].norm() / self.grid_particle_ratio
-            if max < self.force_z[i]:
-                max = self.force_z[i]
+                self.z[i] = self.z[i] + self.accl[i + j]
+            self.force_z[i] = self.z[i].norm() / self.grid_particle_ratio
+
+    def force_setting(self):
         self.force_n = self.force_z.to_numpy().reshape(
             self.n_grid, self.n_grid).transpose()
         # self.force_n = self.force_n.reshape(self.n_grid,
         #                                     self.n_grid).transpose()
-        return max
 
     # def draw_force(self):
     #     setting_x = np.linspace(-1.0, 1.0, self.n_grid)
@@ -430,24 +427,21 @@ class Simulations:
     def add_object_figure(self, figure: ti.template(), t: int):
         for k in range(self.n_particles):
             if isinstance(figure, Rect):
-                if self.point_in_rect(figure, self.x[k][0], self.x[k][1]):
+                if self.point_in_rect(figure, self.x[k][0] * self.window_w,
+                                      self.x[k][1] * self.window_h):
                     self.material[k] = t
                     # self.v[k] = velocity
             elif isinstance(figure, Circle):
-                if self.point_in_circle(figure, self.x[k][0], self.x[k][1]):
+                if self.point_in_circle(figure, self.x[k][0] * self.window_w,
+                                        self.x[k][1] * self.window_h):
                     self.material[k] = t
             else:
-                if self.point_in_poly(figure, self.x[k][0], self.x[k][1]):
+                if self.point_in_poly(figure, self.x[k][0] * self.window_w,
+                                      self.x[k][1] * self.window_h):
                     self.material[k] = t
 
     # @ti.kernel
-    def add_object_circle(self,
-                          center,
-                          radius,
-                          color,
-                          num=500,
-                          t=MatterType['Plastic'],
-                          velocity=(0.0, 0.0)):
+    def add_object_circle(self, figure: ti.template(), t: int):
         i = 0
         area = math.pi * (radius * radius) * self.window_w * self.window_h
         num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
@@ -465,13 +459,7 @@ class Simulations:
 
     # Add rectangle object in scene
 
-    def add_object_rectangle(self,
-                             v1,
-                             v2,
-                             color,
-                             num=500,
-                             t=MatterType['Plastic'],
-                             velocity=(0.0, 0.0)):
+    def add_object_rectangle(self, figure: ti.template(), t: int):
         box_min = [min(v1[0], v2[0]), min(v1[1], v2[1])]
         box_max = [max(v1[0], v2[0]), max(v1[1], v2[1])]
         i = 0
@@ -488,17 +476,12 @@ class Simulations:
 
     # Add polygon & free-hand object in scene
     # @ti.kernel
-    def add_object_polygon(self,
-                           polygon,
-                           color,
-                           num=500,
-                           t='Snow',
-                           velocity=(0.0, 0.0)):
+    def add_object_polygon(self, figure: ti.template(), t: int):
         scanline = CScanLine(polygon)  # use scanline method here
         i = 0
         area = scanline.GetRectArea()
         num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
-        print(scanline.top, scanline.bottom, scanline.left, scanline.right)
+        # print(scanline.top, scanline.bottom, scanline.left, scanline.right)
         while i < num:
             pos = np.array([self.ran(), self.ran()])
             x0 = pos[0] * (scanline.right - scanline.left) + scanline.left

@@ -8,6 +8,7 @@ class Figure:
     def __init__(self, start_point=QPoint()):
         self.p_point_array = QPolygonF()
         self.p_point_array << start_point
+        print(self.p_point_array[0])
         self.line_width = 1
         self.line_color = QColor(0, 0, 0)
         self.start_x = start_point.x()
@@ -64,7 +65,6 @@ class Polygon(Figure):
 
     def __init__(self, start_point: QPoint):
         super().__init__(start_point)
-        self.p_point_array = QPolygonF()
 
     def draw(self, paint: QPainter):
         if self.p_point_array.size() > 1:
