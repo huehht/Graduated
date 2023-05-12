@@ -109,11 +109,13 @@ def substep():
 
 @ti.kernel
 def reset():
-    group_size = n_particles // 3
+    group_size = n_particles // 1
     for i in range(n_particles):
         x[i] = [
-            ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
-            ti.random() * 0.2 + 0.05 + 0.32 * (i // group_size)
+            # ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
+            # ti.random() * 0.2 + 0.05 + 0.32 * (i // group_size)
+            ti.random() * 0.7,
+            ti.random() * 0.7
         ]
         material[i] = i // group_size  # 0: fluid 1: jelly 2: snow
         v[i] = [0, 0]
@@ -155,10 +157,12 @@ for frame in range(20000):
         attractor_strength[None] = -1
     for s in range(int(2e-3 // dt)):
         substep()
-    gui.circles(x.to_numpy(),
-                radius=1.2,
-                palette=[0x068587, 0xED553B, 0xEEEEF0],
-                palette_indices=material)
+    gui.circles(
+        x.to_numpy(),
+        radius=1.2,
+        # palette=[0x068587, 0xED553B, 0xEEEEF0],
+        color=0x068587)
+    # palette_indices=material)
 
     # Change to gui.show(f'{frame:06d}.png') to write images to disk
     gui.show()

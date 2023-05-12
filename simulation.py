@@ -38,9 +38,10 @@ class Simulations:
     # @ti.kernel
     def __init__(self, w, h) -> None:
         quality = 1  # Use a larger value for higher-res simulations
-        self.n_grid = 8 * quality
-        self.n_particles = 8 * 8 * 20 * quality**2
-        self.grid_particle_ratio = 20
+        self.n_grid = 128 * quality
+        self.n_part_grid = 8 * quality
+        self.n_particles = 8 * 8 * 50 * quality**2
+        self.grid_particle_ratio = 50
         self.dx, self.inv_dx = 1 / self.n_grid, float(self.n_grid)
         # self.n_p2gs = self.n_particles / self.grid_particle_ratio
         self.n_p2gs = 8 * 8 * quality**2
@@ -62,7 +63,7 @@ class Simulations:
         # self.area_particle_ratio = 0.015
         # num of particles = ratio * area
         self.gravity = ti.Vector.field(2, dtype=float, shape=())
-        self.gravity[None] = [0, -1]
+        self.gravity[None] = [0, 1]
         self.window_w = w
         self.window_h = h
         self.x = ti.Vector.field(2,
@@ -94,12 +95,13 @@ class Simulations:
         group_size = self.grid_particle_ratio
         for i in range(self.n_particles):
             self.x[i] = [
-                ti.random() / self.n_grid +
-                ((i // group_size) % self.n_grid) / self.n_grid,
-                ti.random() / self.n_grid +
-                ((i // group_size) // self.n_grid) / self.n_grid
+                ti.random() / self.n_part_grid +
+                ((i // group_size) % self.n_part_grid) / self.n_part_grid,
+                ti.random() / self.n_part_grid +
+                ((i // group_size) // self.n_part_grid) / self.n_part_grid
             ]
-            self.material[i] = MatterType['NoType']
+            # self.material[i] = MatterType['NoType']
+            self.material[i] = MatterType['Fluid']
             self.v[i] = [0, 0]
             self.F[i] = ti.Matrix([[1, 0], [0, 1]])
             self.Jp[i] = 1
@@ -129,7 +131,7 @@ class Simulations:
             # Hardening coefficient: snow gets harder when compressed
             h = ti.max(0.1, ti.min(5, ti.exp(10 * (1.0 - self.Jp[p]))))
             if self.material[p] == 3:
-                self.reset_mu_lam(2e4, 0.3)
+                self.reset_mu_lam(5e3, 0.2)
                 # E, nu = 2e4, 0.3  # Young's modulus and Poisson's ratio
                 # self.mu_0, self.lambda_0 = E / (2 * (1 + nu)), E * nu / (
                 #     (1 + nu) * (1 - 2 * nu))  # Lame parameters
@@ -202,19 +204,20 @@ class Simulations:
             self.x[p] += self.dt * self.v[p]  # advection
 
     # @ti.func
-    def point_in_rect(self, figure: ti.template(), pt_x, pt_y):
-        print(pt_x)
-        print(pt_y)
+    def point_in_rect(self, figure: ti.template(), pt_x: float,
+                      pt_y: float) -> bool:
         return pt_x <= ti.max(figure.start_x, figure.end_x) and pt_x >= ti.min(
             figure.start_x, figure.end_x) and pt_y <= ti.max(
                 figure.start_y, figure.end_y) and pt_y >= ti.min(
                     figure.start_y, figure.end_y)
 
     # @ti.func
-    def point_in_circle(self, figure: ti.template(), pt_x, pt_y):
+    def point_in_circle(self, figure: ti.template(), pt_x: float,
+                        pt_y: float) -> bool:
         radius = abs(figure.start_x - figure.end_x)
         center_x = (figure.start_x + figure.end_x) / 2
         center_y = (figure.start_y + figure.end_y) / 2
+        # print(pt_x, pt_y)
         return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
 
     # @ti.func
@@ -270,7 +273,7 @@ class Simulations:
 
     def force_setting(self):
         self.force_n = self.force_z.to_numpy().reshape(
-            self.n_grid, self.n_grid).transpose()
+            self.n_part_grid, self.n_part_grid).transpose()
         # self.force_n = self.force_n.reshape(self.n_grid,
         #                                     self.n_grid).transpose()
 
@@ -442,56 +445,26 @@ class Simulations:
 
     # @ti.kernel
     def add_object_circle(self, figure: ti.template(), t: int):
-        i = 0
-        area = math.pi * (radius * radius) * self.window_w * self.window_h
-        num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
-        while i < num:
-            pos = [((self.ran() * 2) - 1) * radius,
-                   ((self.ran() * 2) - 1) * radius]
-            if pos[0] * pos[0] + pos[1] * pos[1] < radius * radius:
-                self.particles.append(
-                    self.particle(x=np.array(
-                        [pos[0] + center[0], pos[1] + center[1]]),
-                                  v=velocity,
-                                  color=color,
-                                  material=t))
-                i += 1
+        for k in range(self.n_particles):
+            if self.point_in_circle(figure, self.x[k][0] * self.window_w,
+                                    self.x[k][1] * self.window_h):
+                self.material[k] = t
 
     # Add rectangle object in scene
 
     def add_object_rectangle(self, figure: ti.template(), t: int):
-        box_min = [min(v1[0], v2[0]), min(v1[1], v2[1])]
-        box_max = [max(v1[0], v2[0]), max(v1[1], v2[1])]
-        i = 0
-        area = (box_max[0] - box_min[0]) * self.window_w * (
-            box_max[1] - box_min[1]) * self.window_h
-        num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
-        while i < num:
-            pos = np.array([
-                self.ran() * (box_max[0] - box_min[0]) + box_min[0],
-                self.ran() * (box_max[1] - box_min[1]) + box_min[1]
-            ])
-            self.particles.append(self.particle(pos, velocity, color, t))
-            i += 1
+        for k in range(self.n_particles):
+            if self.point_in_rect(figure, self.x[k][0] * self.window_w,
+                                  self.x[k][1] * self.window_h):
+                self.material[k] = t
 
     # Add polygon & free-hand object in scene
     # @ti.kernel
     def add_object_polygon(self, figure: ti.template(), t: int):
-        scanline = CScanLine(polygon)  # use scanline method here
-        i = 0
-        area = scanline.GetRectArea()
-        num = area * self.area_particle_ratio if area * self.area_particle_ratio > num else num
-        # print(scanline.top, scanline.bottom, scanline.left, scanline.right)
-        while i < num:
-            pos = np.array([self.ran(), self.ran()])
-            x0 = pos[0] * (scanline.right - scanline.left) + scanline.left
-            y0 = pos[1] * (scanline.top - scanline.bottom) + scanline.bottom
-            if y0 <= scanline.top and y0 >= scanline.bottom and x0 >= scanline.left and x0 <= scanline.right:
-                if scanline.mat_inside.get((int(x0), int(y0))):
-                    # print(x0, y0)
-                    self.particles.append(
-                        self.particle(pos, velocity, color, t))
-                    i += 1
+        for k in range(self.n_particles):
+            if self.point_in_poly(figure, self.x[k][0] * self.window_w,
+                                  self.x[k][1] * self.window_h):
+                self.material[k] = t
 
 
 @ti.data_oriented

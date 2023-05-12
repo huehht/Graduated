@@ -210,11 +210,11 @@ class Minidraw_controller(QWidget):
                     color = Qt.black
                 elif matr_n[i] == MatterType['Steel']:
                     color = Qt.white
-                print(pos_n[i][0], pos_n[i][1])
                 painter.setPen(QPen(color, 1))
                 painter.setBrush(QBrush(color))
-                rectangle = QRect(pos_n[i][0] * self.window_w,
-                                  pos_n[i][1] * self.window_h, 2, 2)
+                rectangle = QRect((pos_n[i][0] * self.window_w).astype(int),
+                                  (pos_n[i][1] * self.window_h).astype(int), 2,
+                                  2)
                 painter.drawEllipse(rectangle)
 
         elif self.usingFEM:
@@ -278,9 +278,19 @@ class Minidraw_controller(QWidget):
             # p_points = p_figure.p_point_array
             if self.usingFEM:
                 if isinstance(p_figure, Rect):
-                    self.fem_simulation.add_object_figure(p_figure, ptype)
+                    self.fem_simulation.add_object_rectangle(p_figure, ptype)
+                elif isinstance(p_figure, Circle):
+                    self.fem_simulation.add_object_circle(p_figure, ptype)
+                else:
+                    self.fem_simulation.add_object_polygon(p_figure, ptype)
             elif self.usingMPM:
-                self.taichi_simulation.add_object_figure(p_figure, ptype)
+                if isinstance(p_figure, Rect):
+                    self.taichi_simulation.add_object_rectangle(
+                        p_figure, ptype)
+                elif isinstance(p_figure, Circle):
+                    self.taichi_simulation.add_object_circle(p_figure, ptype)
+                else:
+                    self.taichi_simulation.add_object_polygon(p_figure, ptype)
                 # get object shape and create object
                 # if figure type is rectangle
                 # if isinstance(p_figure, Rect):
@@ -373,6 +383,7 @@ class Minidraw_controller(QWidget):
                                          self.taichi_simulation.force_n)
 
     def simulate(self):
+        self.taichi_simulation.reset()
         # 1. create objects and add them to particles
         self.add_objects()
 
@@ -384,7 +395,7 @@ class Minidraw_controller(QWidget):
             self.win.setWindowTitle('Force Visualization')
             self.view_consistent_scale = self.win.addPlot(
                 0, 0, 1, 1, title="Stress of the model", enableMenu=False)
-            n = self.taichi_simulation.n_grid + 1
+            n = self.taichi_simulation.n_part_grid + 1
             self.x = np.repeat(np.arange(0, n), n).reshape(n, n)
             self.y = np.tile(np.arange(0, n), n).reshape(n, n)
             self.x.sort(axis=0)
@@ -411,10 +422,10 @@ class Minidraw_controller(QWidget):
             self.win.addItem(self.bar_static, 0, 1, 1, 1)
             self.timer = QTimer()
             self.timer.start(1)
-            self.timer.timeout.connect(self.pyqtg_draw)
+            # self.timer.timeout.connect(self.pyqtg_draw)
 
         # 2. start simulation
-        self.taichi_simulation.reset()
+
         while True:
             self.editing_simulate()
 
