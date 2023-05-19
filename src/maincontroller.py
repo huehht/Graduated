@@ -12,7 +12,7 @@ import matplotlib.animation as animation
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
 import simulation
 
-ti.init(arch=ti.gpu)  # Try to run on GPU
+# ti.init(arch=ti.gpu)  # Try to run on GPU
 
 
 class FigureType(Enum):
@@ -41,8 +41,10 @@ class Minidraw_controller(QWidget):
         self.dt = 1e-4
         self.frame_dt = 2e-3
 
-        self.window_h = self.height()
-        self.window_w = self.width()
+        # self.window_h = self.height()
+        # self.window_w = self.width()
+        self.window_h = 900
+        self.window_w = 1200
         self.draw_status = False
         self.current_point = None
         self.usingFEM = False
@@ -70,7 +72,7 @@ class Minidraw_controller(QWidget):
         self.taichi_simulation = simulation.Simulations(
             self.window_w, self.window_h)
 
-    def point_in_polygon(figure, point: QPoint):
+    def point_in_polygon(self, figure, point: QPoint):
         pt_x = point.x()
         pt_y = point.y()
         if isinstance(figure, Rect):

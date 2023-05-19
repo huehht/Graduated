@@ -112,12 +112,12 @@ def reset():
     group_size = n_particles // 1
     for i in range(n_particles):
         x[i] = [
-            # ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
-            # ti.random() * 0.2 + 0.05 + 0.32 * (i // group_size)
-            ti.random() * 0.7,
-            ti.random() * 0.7
+            ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
+            ti.random() * 0.2 + 0.05 + 0.32 * (i // group_size)
+            # ti.random() * 0.7,
+            # ti.random() * 0.7
         ]
-        material[i] = i // group_size  # 0: fluid 1: jelly 2: snow
+        material[i] = i // group_size + 1  # 0: fluid 1: jelly 2: snow
         v[i] = [0, 0]
         F[i] = ti.Matrix([[1, 0], [0, 1]])
         Jp[i] = 1
@@ -129,7 +129,7 @@ print(
 )
 gui = ti.GUI("Taichi MLS-MPM-128", res=512, background_color=0x112F41)
 reset()
-gravity[None] = [0, -1]
+gravity[None] = [0, -10]
 
 for frame in range(20000):
     if gui.get_event(ti.GUI.PRESS):
@@ -148,8 +148,8 @@ for frame in range(20000):
     if gui.is_pressed(ti.GUI.DOWN, 's'):
         gravity[None][1] = -1
     mouse = gui.get_cursor_pos()
-    gui.circle((mouse[0], mouse[1]), color=0x336699, radius=15)
-    attractor_pos[None] = [mouse[0], mouse[1]]
+    # gui.circle((mouse[0], mouse[1]), color=0x336699, radius=15)
+    # attractor_pos[None] = [mouse[0], mouse[1]]
     attractor_strength[None] = 0
     if gui.is_pressed(ti.GUI.LMB):
         attractor_strength[None] = 1
@@ -161,7 +161,7 @@ for frame in range(20000):
         x.to_numpy(),
         radius=1.2,
         # palette=[0x068587, 0xED553B, 0xEEEEF0],
-        color=0x068587)
+        color=0xED553B)
     # palette_indices=material)
 
     # Change to gui.show(f'{frame:06d}.png') to write images to disk

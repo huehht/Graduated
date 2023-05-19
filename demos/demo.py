@@ -5,7 +5,7 @@ import numpy as np
 ti.init(arch=ti.gpu)
 gui = ti.GUI('FEM99')
 
-N = 16
+N = 64
 dt = 1e-4
 dx = 1 / N
 rho = 4e1

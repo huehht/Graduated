@@ -14,7 +14,7 @@ class Ui_Minidraw(object):
 
     def setupUi(self, Minidraw):
         Minidraw.setObjectName("Minidraw")
-        Minidraw.resize(800, 600)
+        Minidraw.resize(1200, 1000)
         self.menuBar = QtWidgets.QMenuBar(Minidraw)
         self.menuBar.setObjectName("menuBar")
         Minidraw.setMenuBar(self.menuBar)
