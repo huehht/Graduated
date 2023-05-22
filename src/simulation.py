@@ -29,7 +29,7 @@ class FigureType(Enum):
     # Del = 8
 
 
-MatterType = dict(NoType=0, Fluid=1, Jelly=2, Steel=3, Plastic=4)
+MatterType = dict(NoType=0, Fluid=1, Jelly=2, Steel=3, Plastic=4, HSteel=5)
 
 
 @ti.data_oriented
@@ -471,8 +471,10 @@ class Simulations:
 class FEM:
 
     # @ti.kernel
-    def __init__(self) -> None:
-        self.N = 40
+    def __init__(self, w, h) -> None:
+        self.window_w = w
+        self.window_h = h
+        self.N = 32
         self.dt = 1e-4
         self.dx = 1 / self.N
         self.rho = 4e1
@@ -480,7 +482,7 @@ class FEM:
         self.NV = (self.N + 1)**2  # number of vertices
         E, nu = 4e4, 0.2  # Young's modulus and Poisson's ratio
         self.mu, self.lam = E / 2 / (1 + nu), E * nu / (1 + nu) / (1 - 2 * nu)
-        self.gravity = ti.Vector([0, -1])
+        self.gravity = ti.Vector([0, 10])
         self.damping = 12.5
         # self.damping = 20
 
@@ -495,9 +497,11 @@ class FEM:
             float, self.NF)  # potential energy of each face (Neo-Hookean)
         self.U = ti.field(float, (), needs_grad=True)  # total potential energy
         self.f = ti.Vector.field(2, float, self.NV)
+        self.force_n = ti.field(float, self.NV)
         self.init_mesh()
-        self.init_pos()
+        # self.init_pos()
 
+    # @ti.func
     def resetMaterial(self, material):
         if material == MatterType['Jelly']:
             self.lam = self.lam * 0.3
@@ -505,7 +509,8 @@ class FEM:
             E, nu = 5e3, 0.4
             self.mu, self.lam = E / 2 / (1 + nu), E * nu / (1 + nu) / (1 -
                                                                        2 * nu)
-        elif material == MatterType['Steel']:
+        elif material == MatterType['Steel'] or material == MatterType[
+                'HSteel']:
             E, nu = 1e5, 0.3
             self.mu, self.lam = E / 2 / (1 + nu), E * nu / (1 + nu) / (1 -
                                                                        2 * nu)
@@ -535,6 +540,11 @@ class FEM:
                 self.f[ic] += fc
 
     @ti.kernel
+    def caculate_f(self):
+        for i in range(self.NV):
+            self.force_n[i] = self.f[i].norm()
+
+    @ti.kernel
     def advance(self):
         for i in range(self.NV):
             acc = self.f[i] / (self.rho * self.dx**2)
@@ -542,8 +552,8 @@ class FEM:
             self.vel[i] *= ti.exp(-self.dt * self.damping)
         for i in range(self.NV):
             # rect boundary condition:
-            cond = self.pos[i] < 0 and self.vel[i] < 0 or self.pos[
-                i] > 1 and self.vel[i] > 0
+            cond = self.pos[i] < 0.04 and self.vel[i] < 0 or self.pos[
+                i] > 0.92 and self.vel[i] > 0
             for j in ti.static(range(self.pos.n)):
                 if cond[j]:
                     self.vel[i][j] = 0
@@ -576,11 +586,48 @@ class FEM:
                         count += 1
             return count % 2 == 1
 
+    # @ti.func
+    def point_in_rect(self, figure: ti.template(), pt_x: float,
+                      pt_y: float) -> bool:
+        return pt_x <= ti.max(figure.start_x, figure.end_x) and pt_x >= ti.min(
+            figure.start_x, figure.end_x) and pt_y <= ti.max(
+                figure.start_y, figure.end_y) and pt_y >= ti.min(
+                    figure.start_y, figure.end_y)
+
+    # @ti.func
+    def point_in_circle(self, figure: ti.template(), pt_x: float,
+                        pt_y: float) -> bool:
+        radius = abs(figure.start_x - figure.end_x)
+        center_x = (figure.start_x + figure.end_x) / 2
+        center_y = (figure.start_y + figure.end_y) / 2
+        # print(pt_x, pt_y)
+        return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
+
+    # @ti.func
+    def point_in_poly(self, figure, pt_x, pt_y):
+        # points = figure.p_point_array
+        nums = len(figure.p_point_array)
+        count = 0
+        for i in range(nums):
+            x1, y1 = figure.p_point_array[i].x(), figure.p_point_array[i].y()
+            x2, y2 = figure.p_point_array[
+                (i + 1) % nums].x(), figure.p_point_array[(i + 1) % nums].y()
+            if ti.min(y1, y2) < pt_y <= ti.max(y1, y2):
+                x = (pt_y - y1) * (x2 - x1) / (y2 - y1) + x1
+                if x <= pt_x:
+                    count += 1
+        return count % 2 == 1
+
     @ti.kernel
-    def init_pos(self):
+    def init_pos(self, top: int, bottom: int, left: int, right: int):
+        hit = (top - bottom) / self.window_h
+        wid = (right - left) / self.window_w
+        # print(self.window_h, self.window_w)
+        # print(top - bottom, hit, hit * self.window_h)
         for i, j in ti.ndrange(self.N + 1, self.N + 1):
             k = i * (self.N + 1) + j
-            self.pos[k] = ti.Vector([i, j]) / self.N
+            self.pos[k] = ti.Vector([i * wid, j * hit]) / self.N + ti.Vector(
+                [left / self.window_w, bottom / self.window_h])
             self.vel[k] = ti.Vector([0, 0])
             self.matr[k] = MatterType['NoType']
         for i in range(self.NF):
@@ -614,3 +661,28 @@ class FEM:
             if self.point_in_polygon(figure, self.pos[k]):
                 self.matr[k] = t
                 self.vel[k] = velocity
+
+    def add_object_circle(self, figure: ti.template(), t: int, vx=0, vy=0):
+        for k in range(self.NV):
+            if self.point_in_circle(figure, self.pos[k][0] * self.window_w,
+                                    self.pos[k][1] * self.window_h):
+                self.matr[k] = t
+                self.vel[k] = (vx, vy)
+
+    # Add rectangle object in scene
+
+    def add_object_rectangle(self, figure: ti.template(), t: int, vx=0, vy=0):
+        for k in range(self.NV):
+            if self.point_in_rect(figure, self.pos[k][0] * self.window_w,
+                                  self.pos[k][1] * self.window_h):
+                self.matr[k] = t
+                self.vel[k] = (vx, vy)
+
+    # Add polygon & free-hand object in scene
+    # @ti.kernel
+    def add_object_polygon(self, figure: ti.template(), t: int, vx=0, vy=0):
+        for k in range(self.NV):
+            if self.point_in_poly(figure, self.pos[k][0] * self.window_w,
+                                  self.pos[k][1] * self.window_h):
+                self.matr[k] = t
+                self.vel[k] = (vx, vy)

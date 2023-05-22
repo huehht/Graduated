@@ -1,8 +1,8 @@
 from enum import Enum
 import math
 import taichi as ti
-from PyQt5.QtCore import Qt, QPoint, QRect, QCoreApplication
-from PyQt5.QtGui import QColor, QPainter, QMouseEvent, QPen, QPalette, QBrush
+from PyQt5.QtCore import Qt, QPoint, QPointF, QRect, QCoreApplication
+from PyQt5.QtGui import QColor, QPainter, QPolygonF, QMouseEvent, QPen, QPalette, QBrush, QLinearGradient
 from PyQt5.QtWidgets import QWidget, QFileDialog
 from PyQt5.QtCore import QTimer
 import pyqtgraph as pg
@@ -11,6 +11,9 @@ import numpy as np
 import matplotlib.animation as animation
 from figures import Figure, Circle, Curve, Ellipse, Line, Polygon, Rect, Triangle
 import simulation
+from scanline import CScanLine
+import copy
+from scipy.ndimage.filters import gaussian_filter
 
 # ti.init(arch=ti.gpu)  # Try to run on GPU
 
@@ -27,7 +30,7 @@ class FigureType(Enum):
     # Del = 8
 
 
-MatterType = dict(NoType=0, Fluid=1, Jelly=2, Steel=3, Plastic=4)
+MatterType = dict(NoType=0, Fluid=1, Jelly=2, Steel=3, Plastic=4, HSteel=5)
 
 
 # @ti.data_oriented
@@ -44,7 +47,7 @@ class Minidraw_controller(QWidget):
         # self.window_h = self.height()
         # self.window_w = self.width()
         self.window_h = 900
-        self.window_w = 1200
+        self.window_w = 900
         self.draw_status = False
         self.current_point = None
         self.usingFEM = False
@@ -64,11 +67,12 @@ class Minidraw_controller(QWidget):
         self.isEdit = False
         self.isDel = False
         self.isDraw = False
+        self.endEdit = False
 
         self.add_mesh = False
         self.is_drawing_polygon = False
         self.is_simulating = False
-        self.fem_simulation = simulation.FEM()
+        self.fem_simulation = simulation.FEM(self.window_w, self.window_h)
         self.taichi_simulation = simulation.Simulations(
             self.window_w, self.window_h)
 
@@ -81,9 +85,9 @@ class Minidraw_controller(QWidget):
                     figure.start_y, figure.end_y) and pt_y >= min(
                         figure.start_y, figure.end_y)
         elif isinstance(figure, Circle):
-            radius = abs(figure.start_x - figure.end_x)
+            radius = abs(figure.start_x - figure.end_x) / 2
             center_x = (figure.start_x + figure.end_x) / 2
-            center_y = (figure.start_y + figure.end_y) / 2
+            center_y = figure.start_y + radius
             return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
         else:
             points = figure.p_point_array
@@ -101,9 +105,14 @@ class Minidraw_controller(QWidget):
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
             self.current_point = event.pos()
+            # print(self.current_point)
             if self.isEdit:
                 ind = self.edit_objects_getind()
-                self.status_stack.append(['e', ind])
+                if ind is not None:
+                    self.status_stack.append(['e', ind])
+                    # pass
+                else:
+                    self.endEdit = False
             elif self.isDel:
                 # ind=self.del_objects()
                 # self.status_stack.append(['d',ind])
@@ -136,7 +145,7 @@ class Minidraw_controller(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent):
 
-        if self.isEdit:
+        if self.isEdit and self.endEdit:
             self.edit_objects(self.current_point, event.pos())
             self.current_point = event.pos()
         elif self.draw_status:
@@ -146,15 +155,17 @@ class Minidraw_controller(QWidget):
         self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        # print(event.pos())
         self.draw_status = False
         if self.isDel:
             ind = self.del_objects()
-            self.status_stack.append(['d', ind])
-            self.isDel = False
-        elif self.isEdit:
-            ind = self.edit_objects(self.current_point, event.pos())
+            if ind is not None:
+                self.status_stack.append(['d', ind])
+                self.isDel = False
+        elif self.isEdit and self.endEdit:
+            self.edit_objects(self.current_point, event.pos())
             self.current_point = event.pos()
-            self.del_figure.append(self.figure_array.pop(ind))
+            # self.del_figure.append(self.figure_array.pop(ind))
             self.isEdit = False
         elif self.p_current_figure and self.isAdding:
             self.current_point = event.pos()
@@ -164,6 +175,7 @@ class Minidraw_controller(QWidget):
             if self.current_figure_type != FigureType.Polygon:
                 self.figure_array.append(self.p_current_figure)
                 self.p_current_figure = None
+        self.endEdit = True
         self.update()
 
     def paintEvent(self, event):
@@ -223,10 +235,14 @@ class Minidraw_controller(QWidget):
             pos_n = self.fem_simulation.pos.to_numpy()
             node_f2v = self.fem_simulation.f2v.to_numpy()
             matr_n = self.fem_simulation.matr.to_numpy()
+            fc_n = self.fem_simulation.force_n.to_numpy()
+            max_f = np.linalg.norm(fc_n)
+            fc_n = fc_n / max(max_f, 1e-4)
             for i in range(self.fem_simulation.NF):
                 for j in range(3):
                     a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
-                    if matr_n[a] == MatterType['NoType']:
+                    if matr_n[a] == MatterType['NoType'] or matr_n[
+                            b] == MatterType['NoType']:
                         break
                     elif matr_n[a] == MatterType['Fluid']:
                         color = Qt.blue
@@ -234,19 +250,95 @@ class Minidraw_controller(QWidget):
                         color = QColor(0xED553B)
                     elif matr_n[a] == MatterType['Plastic']:
                         color = Qt.black
+                    elif matr_n[a] == MatterType['HSteel']:
+                        color = Qt.green
                     elif matr_n[a] == MatterType['Steel']:
                         color = Qt.white
-                    painter.setPen(QPen(color, 1))
-                    painter.setBrush(QBrush(color))
-                    painter.drawLine(pos_n[a][0] * self.window_w,
-                                     pos_n[a][1] * self.window_h,
-                                     pos_n[b][0] * self.window_w,
-                                     pos_n[b][1] * self.window_h)
+                    # if self.add_mesh:
+                    if True:
+                        painter.setPen(QPen(color, 1))
+                        painter.setBrush(QBrush(color))
+                        painter.drawLine(pos_n[a][0] * self.window_w,
+                                         pos_n[a][1] * self.window_h,
+                                         pos_n[b][0] * self.window_w,
+                                         pos_n[b][1] * self.window_h)
+                # print(self.add_mesh)
+                # if not self.add_mesh:
+                if False:
+                    a, b, c = node_f2v[i][0], node_f2v[i][1], node_f2v[i][2]
+                    if matr_n[a] == MatterType['NoType'] or matr_n[
+                            b] == MatterType['NoType'] or matr_n[
+                                c] == MatterType['NoType']:
+                        break
+                    grad = QLinearGradient(pos_n[a][0] * self.window_w,
+                                           pos_n[a][1] * self.window_h,
+                                           pos_n[c][0] * self.window_w,
+                                           pos_n[c][1] * self.window_h)
+                    # colors = [(0, 0, 0), (8, 69, 99), (57, 174, 156),
+                    #           (222, 251, 123), (239, 255, 190),
+                    #           (255, 255, 255)]
+                    colorx = [0, 8, 57, 222, 239, 255]
+                    colory = [0, 69, 174, 251, 255, 255]
+                    colorz = [0, 99, 156, 123, 190, 255]
+                    x = [0, 0.2, 0.4, 0.6, 0.8, 1]
+                    tempcolorax = np.interp(fc_n[a], x, colorx)
+                    tempcoloray = np.interp(fc_n[a], x, colory)
+                    tempcoloraz = np.interp(fc_n[a], x, colorz)
+                    tempcolorcx = np.interp(fc_n[c], x, colorx)
+                    tempcolorcy = np.interp(fc_n[c], x, colory)
+                    tempcolorcz = np.interp(fc_n[c], x, colorz)
+                    # print(tempcolorax, tempcoloray, tempcoloraz)
+                    # print(tempcolorcx, tempcolorcy, tempcolorcz)
+                    grad.setColorAt(
+                        0, QColor(tempcolorax, tempcoloray, tempcoloraz))
+                    # grad.setColorAt(0.2, QColor(8, 69, 99))
+                    # grad.setColorAt(0.4, QColor(57, 174, 156))
+                    # grad.setColorAt(0.6, QColor(222, 251, 123))
+                    # grad.setColorAt(0.8, QColor(239, 255, 190))
+                    grad.setColorAt(
+                        1, QColor(tempcolorcx, tempcolorcy, tempcolorcz))
+                    painter.setBrush(QBrush(grad))
+                    painter.drawPolygon(
+                        QPolygonF([
+                            QPointF(pos_n[a][0] * self.window_w,
+                                    pos_n[a][1] * self.window_h),
+                            QPointF(pos_n[b][0] * self.window_w,
+                                    pos_n[b][1] * self.window_h),
+                            QPointF(pos_n[c][0] * self.window_w,
+                                    pos_n[c][1] * self.window_h)
+                        ]))
+
+    def setting_4sets(self):
+        top = 0
+        bottom = self.window_h
+        left = self.window_w
+        right = 0
+        for i in range(len(self.figure_array)):
+            p_figure = self.figure_array[i]
+            if isinstance(p_figure, Line):
+                continue
+            if isinstance(p_figure, Rect):
+                top = max(p_figure.start_y, p_figure.end_y, top)
+                bottom = min(p_figure.start_y, p_figure.end_y, bottom)
+                left = min(p_figure.start_x, p_figure.end_x, left)
+                right = max(p_figure.start_x, p_figure.end_x, right)
+            elif isinstance(p_figure, Circle):
+                top = max(p_figure.start_y, p_figure.end_y, top)
+                bottom = min(p_figure.start_y, p_figure.end_y, bottom)
+                left = min(p_figure.start_x, p_figure.end_x, left)
+                right = max(p_figure.start_x, p_figure.end_x, right)
+            else:
+                csl = CScanLine(p_figure)
+                top = max(csl.top, top)
+                bottom = min(csl.bottom, bottom)
+                left = min(csl.left, left)
+                right = max(csl.right, right)
+        self.fem_simulation.init_pos(top, bottom, left, right)
 
     def add_objects(self):
         for i in range(len(self.figure_array)):
             p_figure = self.figure_array[i]
-            # has_init_velocity = False
+            has_init_velocity = False
 
             # 1. wrong type, just ignore it.
             if not isinstance(p_figure,
@@ -257,8 +349,9 @@ class Minidraw_controller(QWidget):
             p_next_figure = self.figure_array[(i + 1) % len(self.figure_array)]
             if isinstance(p_next_figure,
                           Line) and p_next_figure.get_color() == Qt.red:
-                # has_init_velocity = True
-                pass
+                has_init_velocity = True
+                v_x = p_next_figure.get_line_vector().x()
+                v_y = p_next_figure.get_line_vector().y()
 
             ptype = None
 
@@ -279,12 +372,26 @@ class Minidraw_controller(QWidget):
 
             # p_points = p_figure.p_point_array
             if self.usingFEM:
+                vel_ratio = 10
                 if isinstance(p_figure, Rect):
-                    self.fem_simulation.add_object_rectangle(p_figure, ptype)
+                    if has_init_velocity:
+                        self.fem_simulation.add_object_rectangle(
+                            p_figure, ptype, v_x / vel_ratio, v_y / vel_ratio)
+                    else:
+                        self.fem_simulation.add_object_rectangle(
+                            p_figure, ptype)
                 elif isinstance(p_figure, Circle):
-                    self.fem_simulation.add_object_circle(p_figure, ptype)
+                    if has_init_velocity:
+                        self.fem_simulation.add_object_circle(
+                            p_figure, ptype, v_x / vel_ratio, v_y / vel_ratio)
+                    else:
+                        self.fem_simulation.add_object_circle(p_figure, ptype)
                 else:
-                    self.fem_simulation.add_object_polygon(p_figure, ptype)
+                    if has_init_velocity:
+                        self.fem_simulation.add_object_polygon(
+                            p_figure, ptype, v_x / vel_ratio, v_y / vel_ratio)
+                    else:
+                        self.fem_simulation.add_object_polygon(p_figure, ptype)
             elif self.usingMPM:
                 if isinstance(p_figure, Rect):
                     self.taichi_simulation.add_object_rectangle(
@@ -340,25 +447,38 @@ class Minidraw_controller(QWidget):
         self.figure_array.clear()
 
     def del_objects(self):
+        # print(self.current_point)
+        # print(self.status_stack)
         for figure in self.figure_array[::-1]:
             if self.point_in_polygon(figure, self.current_point):
                 ind = self.figure_array.index(figure)
                 self.del_figure.append(figure)
+                # print(self.del_figure)
                 self.figure_array.remove(figure)
                 return ind
 
     def edit_objects_getind(self):
+        # print(self.current_point)
         for figure in self.figure_array[::-1]:
             if self.point_in_polygon(figure, self.current_point):
                 ind = self.figure_array.index(figure)
+                if isinstance(figure, Rect):
+                    self.del_figure.append(Rect(QPoint(), orig=figure))
+                elif isinstance(figure, Curve):
+                    self.del_figure.append(Curve(QPoint(), orig=figure))
+                elif isinstance(figure, Circle):
+                    self.del_figure.append(Circle(QPoint(), orig=figure))
+                # print(self.del_figure)
+                self.figure_array.append(self.figure_array[ind])
+                self.figure_array.pop(ind)
                 return ind
 
     def edit_objects(self, point_old: QPoint, point_new: QPoint):
-        self.figure_array.append(self.figure_array[self.status_stack[-1][1]])
+        # print(self.status_stack)
+        # self.figure_array.append(self.figure_array[self.status_stack[-1][1]])
         for points in self.figure_array[-1].p_point_array:
             points.setX(points.x() + point_new.x() - point_old.x())
             points.setY(points.y() + point_new.y() - point_old.y())
-            return self.status_stack[-1][1]
 
     def editing_simulate(self):
         QCoreApplication.processEvents()  # response to new message
@@ -374,19 +494,30 @@ class Minidraw_controller(QWidget):
             # 3. update frame, draw the particles in the window
         if self.step % int(self.frame_dt / self.dt) == 0:
             self.update()
-            self.taichi_simulation.caculate_force()
-            self.taichi_simulation.force_setting()
+            if self.usingMPM:
+                self.taichi_simulation.caculate_force()
+                self.taichi_simulation.force_setting()
+            elif self.usingFEM:
+                self.fem_simulation.caculate_f()
             self.isDraw = True
         self.step += 1
 
     def pyqtg_draw(self):
         if self.isDraw:
-            self.pcmi_consistent.setData(self.x, self.y,
-                                         self.taichi_simulation.force_n)
+            if self.usingMPM:
+                z = self.taichi_simulation.force_n
+            elif self.usingFEM:
+                z = self.fem_simulation.force_n.to_numpy().reshape(
+                    self.fem_simulation.N + 1, self.fem_simulation.N + 1)
+                z = np.flip(z, 1)
+                z = gaussian_filter(z, sigma=1)
+                # print(z)
+            self.pcmi_consistent.setData(self.x, self.y, z)
 
     def simulate(self):
         self.taichi_simulation.reset()
         # 1. create objects and add them to particles
+        self.setting_4sets()
         self.add_objects()
 
         self.step = 0
@@ -397,18 +528,23 @@ class Minidraw_controller(QWidget):
             self.win.setWindowTitle('Force Visualization')
             self.view_consistent_scale = self.win.addPlot(
                 0, 0, 1, 1, title="Stress of the model", enableMenu=False)
-            n = self.taichi_simulation.n_part_grid + 1
+            if self.usingMPM:
+                n = self.taichi_simulation.n_part_grid + 1
+            elif self.usingFEM:
+                n = self.fem_simulation.N + 2
             self.x = np.repeat(np.arange(0, n), n).reshape(n, n)
             self.y = np.tile(np.arange(0, n), n).reshape(n, n)
             self.x.sort(axis=0)
             self.y.sort(axis=0)
             edgecolors = None
             antialiasing = True
-            cmap = pg.colormap.get('viridis')
+            # cmap = pg.colormap.get('viridis')
             levels = (
                 0, 5
             )  # Will be overwritten unless enableAutoLevels is set to False
-
+            colors = [(0, 0, 0), (8, 69, 99), (57, 174, 156), (222, 251, 123),
+                      (239, 255, 190), (255, 255, 255)]
+            cmap = pg.ColorMap(pos=np.linspace(0.0, 1, 6), color=colors)
             # Create image item with consistent colors and an interactive colorbar
             self.pcmi_consistent = pg.PColorMeshItem(edgecolors=edgecolors,
                                                      antialiasing=antialiasing,
@@ -424,12 +560,12 @@ class Minidraw_controller(QWidget):
             self.win.addItem(self.bar_static, 0, 1, 1, 1)
             self.timer = QTimer()
             self.timer.start(1)
-            # self.timer.timeout.connect(self.pyqtg_draw)
+            self.timer.timeout.connect(self.pyqtg_draw)
 
-        # 2. start simulation
+            # 2. start simulation
 
-        while True:
-            self.editing_simulate()
+            while True:
+                self.editing_simulate()
 
     def reset_simulation(self):
         self.is_simulating = False
@@ -450,15 +586,16 @@ class Minidraw_controller(QWidget):
         self.update()
 
     def undo(self):
-        status = self.status_stack.pop()
-        if status[0] == 'd':
-            self.figure_array.insert(status[1], self.del_figure.pop())
-        elif len(self.figure_array) > 0 and status[0] == 'a':
-            self.figure_array.pop()
-        elif len(self.figure_array) > 0 and status[0] == 'e':
-            self.figure_array.insert(status[1], self.del_figure.pop())
-            self.figure_array.pop()
-        self.update()
+        if self.status_stack:
+            status = self.status_stack.pop()
+            if status[0] == 'd':
+                self.figure_array.insert(status[1], self.del_figure.pop())
+            elif len(self.figure_array) > 0 and status[0] == 'a':
+                self.figure_array.pop()
+            elif len(self.figure_array) > 0 and status[0] == 'e':
+                self.figure_array.insert(status[1], self.del_figure.pop())
+                self.figure_array.pop()
+            self.update()
 
     def clearFigure(self):
         self.figure_array.clear()

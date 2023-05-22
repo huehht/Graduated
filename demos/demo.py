@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ti.init(arch=ti.gpu)
-gui = ti.GUI('FEM99')
+gui = ti.GUI('FEM99', res=512, background_color=0x112F41)
 
-N = 64
+N = 16
 dt = 1e-4
 dx = 1 / N
 rho = 4e1
@@ -20,7 +20,7 @@ gravity = ti.Vector([0, -40])
 damping = 12.5
 # damping = 20
 
-pos = ti.Vector.field(2, float, NV)
+pos = ti.Vector.field(2, float, NV, needs_grad=True)
 vel = ti.Vector.field(2, float, NV)
 f2v = ti.Vector.field(3, int, NF)  # ids of three vertices of each face
 B = ti.Matrix.field(2, 2, float, NF)
@@ -28,6 +28,7 @@ W = ti.field(float, NF)
 phi = ti.field(float, NF)  # potential energy of each face (Neo-Hookean)
 U = ti.field(float, (), needs_grad=True)  # total potential energy
 f = ti.Vector.field(2, float, NV)
+# col = ti.field(ti.f64, NV)
 
 
 def reload():  # Young's modulus and Poisson's ratio
@@ -57,23 +58,28 @@ def update_force(mu: float, lam: float):
         f[ic] += fc
 
 
-def draw_force():
-    fig, ax = plt.subplots()
-    levels = np.arange(-2, 2.0, 0.005)
-    x = np.linspace(-1.0, 1.0, N + 1)
-    y = np.linspace(-1.0, 1.0, N + 1)
-    X, Y = np.meshgrid(x, y)
-    f_n = f.to_numpy()
-    Z = np.zeros(NV)
-    for i in range(NV):
-        Z[i] = np.linalg.norm(f_n[i])
-    Z = Z.reshape(N + 1, N + 1).transpose()
-    cs = ax.contourf(X, Y, Z, levels=100, cmap=plt.get_cmap('Spectral'))
-    cbar = fig.colorbar(cs)
-    # plt.ion()
-    # plt.pause(0.01)
-    # plt.close()
-    # plt.show()
+# def draw_force():
+#     _max = ti.max(f).norm()
+#     _min = ti.min(f).norm()
+#     _range = _max - _min
+#     step = _range / 5
+#     for i in f:
+#         _data = i.norm()
+#         r = (_data - _min) / _range
+#         idx = int(r * 5)
+#         h = (idx + 1) * step + _min
+#         m = idx * step + _min
+#         local_r = (_data - m) / (h - m)
+#         if idx == 0:
+#             col[i] = 0 << 32 + int(local_r * 255) << 16 + 255
+#         if idx == 1:
+#             col[i] = 0 << 32 + 255 << 16 + int((1 - local_r) * 255)
+#         if idx == 2:
+#             col[i] = int(local_r * 255) << 32 + 255 << 16 + 0
+#         if idx == 3:
+#             col[i] = 255 << 32 + int((1 - local_r) * 255) << 16 + 0
+#         if idx == 4:
+#             col[i] = 255 << 32 + 0 << 16 + int(local_r * 255)
 
 
 @ti.kernel
@@ -84,12 +90,12 @@ def advance():
         vel[i] *= ti.exp(-dt * damping)
     for i in range(NV):
         # ball boundary condition:
-        disp = pos[i] - ball_pos
-        disp2 = disp.norm_sqr()
-        if disp2 <= ball_radius**2:
-            NoV = vel[i].dot(disp)
-            if NoV < 0:
-                vel[i] -= NoV * disp / disp2
+        # disp = pos[i] - ball_pos
+        # disp2 = disp.norm_sqr()
+        # if disp2 <= ball_radius**2:
+        #     NoV = vel[i].dot(disp)
+        #     if NoV < 0:
+        #         vel[i] -= NoV * disp / disp2
         # rect boundary condition:
         cond = pos[i] < 0 and vel[i] < 0 or pos[i] > 1 and vel[i] > 0
         for j in ti.static(range(pos.n)):
@@ -166,11 +172,16 @@ while gui.running:
     pos_n = pos.to_numpy()
     node_f2v = f2v.to_numpy()
     for i in range(NF):
+        # a, b, c = node_f2v[i][0], node_f2v[i][1], node_f2v[i][2]
+        # gui.triangle((pos_n[a][0], pos_n[a][1]), (pos_n[b][0], pos_n[b][1]),
+        #              (pos_n[c][0], pos_n[c][1]),
+        #              color=0x4FB99F)
+
         for j in range(3):
             a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
             gui.line((pos_n[a][0], pos_n[a][1]), (pos_n[b][0], pos_n[b][1]),
                      radius=1,
                      color=0x4FB99F)
     # gui.circles(pos.to_numpy(), radius=2, color=0xffaa33)
-    gui.circle(ball_pos, radius=ball_radius * 512, color=0x666666)
+    # gui.circle(ball_pos, radius=ball_radius * 512, color=0x666666)
     gui.show()

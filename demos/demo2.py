@@ -1,4 +1,7 @@
 import taichi as ti
+import pyqtgraph as pg
+import numpy as np
+from PyQt5.QtCore import QTimer
 
 ti.init(arch=ti.gpu)  # Try to run on GPU
 
@@ -109,7 +112,7 @@ def substep():
 
 @ti.kernel
 def reset():
-    group_size = n_particles // 1
+    group_size = n_particles // 2
     for i in range(n_particles):
         x[i] = [
             ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
@@ -117,7 +120,7 @@ def reset():
             # ti.random() * 0.7,
             # ti.random() * 0.7
         ]
-        material[i] = i // group_size + 1  # 0: fluid 1: jelly 2: snow
+        material[i] = i // group_size  # 0: fluid 1: jelly 2: snow
         v[i] = [0, 0]
         F[i] = ti.Matrix([[1, 0], [0, 1]])
         Jp[i] = 1
@@ -161,8 +164,8 @@ for frame in range(20000):
         x.to_numpy(),
         radius=1.2,
         # palette=[0x068587, 0xED553B, 0xEEEEF0],
-        color=0xED553B)
-    # palette_indices=material)
+        palette=[0xEEEEF0, 0xED553B],
+        palette_indices=material)
 
     # Change to gui.show(f'{frame:06d}.png') to write images to disk
     gui.show()

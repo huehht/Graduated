@@ -49,53 +49,77 @@ class Minidraw(QMainWindow):
     def set_line_color_red(self):
         self.controller.current_line_color = Qt.red
         self.controller.current_figure_type = FigureType.Line
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_line_color_blue(self):
         self.controller.current_line_color = QColor(0x87CEFA)
         self.controller.current_figure_type = FigureType.Curve
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_line_color_green(self):
         self.controller.current_line_color = Qt.green
         self.controller.current_figure_type = FigureType.Curve
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_line_color_orange(self):
         self.controller.current_line_color = QColor(0xED553B)
         self.controller.current_figure_type = FigureType.Curve
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_line_color_black(self):
         self.controller.current_line_color = Qt.black
         self.controller.current_figure_type = FigureType.Curve
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_line_color_yellow(self):
         self.controller.current_line_color = Qt.yellow
         self.controller.current_figure_type = FigureType.Curve
+        self.controller.isDel = False
+        self.controller.isEdit = False
         self.newWind = SettingMatrial()
         self.newWind.show()
 
     def set_line_color_white(self):
         self.controller.current_line_color = Qt.white
         self.controller.current_figure_type = FigureType.Curve
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     # Set figure type
     def set_figure_tool_line(self):
         self.controller.current_figure_type = FigureType.Line
         self.controller.isAdding = True
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_figure_tool_rect(self):
         self.controller.current_figure_type = FigureType.Rectangle
         self.controller.isAdding = True
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_figure_tool_circle(self):
         self.controller.current_figure_type = FigureType.Circle
         self.controller.isAdding = True
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_figure_tool_curve(self):
         self.controller.current_figure_type = FigureType.Curve
         self.controller.isAdding = True
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     def set_figure_tool_ellipse(self):
         self.controller.current_figure_type = FigureType.Ellipse
         self.controller.isAdding = True
+        self.controller.isDel = False
+        self.controller.isEdit = False
 
     # def set_figure_tool_tri(self):
     #     self.controller.current_figure_type = FigureType.Triangle
@@ -144,12 +168,12 @@ class Minidraw(QMainWindow):
         button_white.triggered.connect(self.set_line_color_white)
         self.color_toolbar.addAction(button_white)
 
-        button_blue = QAction(
-            QIcon(
-                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/fluid.png"
-            ), "Fluid", self)
-        button_blue.triggered.connect(self.set_line_color_blue)
-        self.color_toolbar.addAction(button_blue)
+        # button_blue = QAction(
+        #     QIcon(
+        #         "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/fluid.png"
+        #     ), "Fluid", self)
+        # button_blue.triggered.connect(self.set_line_color_blue)
+        # self.color_toolbar.addAction(button_blue)
 
         button_green = QAction(
             QIcon(
@@ -222,7 +246,7 @@ class Minidraw(QMainWindow):
         # button for delete
         action_del = QAction(
             QIcon(
-                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/del.jpg"
+                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/del.png"
             ), "delete element", self)
         action_del.triggered.connect(self.set_figure_tool_del)
         self.figure_toolbar.addAction(action_del)
@@ -384,8 +408,10 @@ class Minidraw(QMainWindow):
     def add_mesh_simu(self):
         if self.add_mesh_simu:
             self.add_mesh_simu = False
+            self.controller.add_mesh = False
         else:
             self.add_mesh_simu = True
+            self.controller.add_mesh = True
 
     def pause_simulation(self):
         self.controller.is_simulating = False

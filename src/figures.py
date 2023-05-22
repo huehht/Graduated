@@ -1,19 +1,29 @@
 from PyQt5.QtGui import QColor, QPolygonF, QPainter, QPen, QPolygon
 from PyQt5.QtCore import QPoint, QPointF, QRect
+import copy
 # from PyQt5.QtWidgets import QPainter
 
 
 class Figure:
 
-    def __init__(self, start_point=QPoint()):
-        self.p_point_array = QPolygonF()
-        self.p_point_array << start_point
-        self.line_width = 1
-        self.line_color = QColor(0, 0, 0)
-        self.start_x = start_point.x()
-        self.start_y = start_point.y()
-        self.end_x = 0
-        self.end_y = 0
+    def __init__(self, start_point=QPoint(), orig=None):
+        if orig is None:
+            self.p_point_array = QPolygonF()
+            self.p_point_array << start_point
+            self.line_width = 1
+            self.line_color = QColor(0, 0, 0)
+            self.start_x = start_point.x()
+            self.start_y = start_point.y()
+            self.end_x = 0
+            self.end_y = 0
+        else:
+            self.p_point_array = QPolygonF(orig.p_point_array)
+            self.line_width = orig.line_width
+            self.line_color = orig.line_color
+            self.start_x = orig.start_x
+            self.start_y = orig.start_y
+            self.end_x = orig.end_x
+            self.end_y = orig.end_y
 
     def set_color(self, color: QColor):
         self.line_color = color
@@ -43,8 +53,8 @@ class Figure:
 
 class Line(Figure):
 
-    def __init__(self, start_point=QPoint()):
-        super().__init__(start_point)
+    def __init__(self, start_point=QPoint(), orig=None):
+        super().__init__(start_point, orig)
 
     def draw_dynamic(self, painter: QPainter, current_point: QPoint):
         pen = QPen(self.line_color, self.line_width)
@@ -62,8 +72,8 @@ class Line(Figure):
 
 class Polygon(Figure):
 
-    def __init__(self, start_point: QPoint):
-        super().__init__(start_point)
+    def __init__(self, start_point: QPoint, orig=None):
+        super().__init__(start_point, orig)
 
     def draw(self, paint: QPainter):
         if self.p_point_array.size() > 1:
@@ -82,8 +92,8 @@ class Polygon(Figure):
 
 class Rect(Polygon):
 
-    def __init__(self, start_point: QPoint):
-        super().__init__(start_point)
+    def __init__(self, start_point: QPoint, orig=None):
+        super().__init__(start_point, orig)
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
@@ -93,6 +103,8 @@ class Rect(Polygon):
                        self.end_y - self.start_y)
 
     def draw(self, paint: QPainter):
+        self.start_x = int(self.p_point_array[0].x())
+        self.start_y = int(self.p_point_array[0].y())
         self.end_x = int(self.p_point_array[1].x())
         self.end_y = int(self.p_point_array[1].y())
 
@@ -102,8 +114,8 @@ class Rect(Polygon):
 
 class Triangle(Polygon):
 
-    def __init__(self, start_point: QPoint):
-        super().__init__(start_point)
+    def __init__(self, start_point: QPoint, orig=None):
+        super().__init__(start_point, orig)
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
@@ -130,9 +142,10 @@ class Triangle(Polygon):
 
 class Curve(Figure):
 
-    def __init__(self, start_point: QPoint):
-        super().__init__(start_point)
-        self.p_point_array = []
+    def __init__(self, start_point: QPoint, orig=None):
+        super().__init__(start_point, orig)
+        if orig is None:
+            self.p_point_array = []
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         self.p_point_array.append(current_point)
@@ -152,8 +165,8 @@ class Curve(Figure):
 
 class Ellipse(Figure):
 
-    def __init__(self, start_point: QPoint):
-        super().__init__(start_point)
+    def __init__(self, start_point: QPoint, orig=None):
+        super().__init__(start_point, orig)
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
@@ -164,6 +177,8 @@ class Ellipse(Figure):
         paint.drawEllipse(rectangle)
 
     def draw(self, paint: QPainter):
+        self.start_x = int(self.p_point_array[0].x())
+        self.start_y = int(self.p_point_array[0].y())
         end_x = int(self.p_point_array[1].x())
         end_y = int(self.p_point_array[1].y())
 
@@ -174,8 +189,8 @@ class Ellipse(Figure):
 
 class Circle(Ellipse):
 
-    def __init__(self, start_point: QPoint):
-        super().__init__(start_point)
+    def __init__(self, start_point: QPoint, orig=None):
+        super().__init__(start_point, orig)
 
     def draw_dynamic(self, paint: QPainter, current_point: QPoint):
         # convert qreal to int
@@ -186,6 +201,8 @@ class Circle(Ellipse):
         paint.drawEllipse(rectangle)
 
     def draw(self, paint: QPainter):
+        self.start_x = int(self.p_point_array[0].x())
+        self.start_y = int(self.p_point_array[0].y())
         self.end_x = int(self.p_point_array[1].x())
 
         rectangle = QRect(self.start_x, self.start_y,
