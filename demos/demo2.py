@@ -1,6 +1,7 @@
 import taichi as ti
 import pyqtgraph as pg
 import numpy as np
+import math
 from PyQt5.QtCore import QTimer
 
 ti.init(arch=ti.gpu)  # Try to run on GPU
@@ -11,7 +12,7 @@ dx, inv_dx = 1 / n_grid, float(n_grid)
 dt = 1e-4 / quality
 p_vol, p_rho = (dx * 0.5)**2, 1
 p_mass = p_vol * p_rho
-E, nu = 5e3, 0.2  # Young's modulus and Poisson's ratio
+E, nu = 7e3, 0.2  # Young's modulus and Poisson's ratio
 mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
     (1 + nu) * (1 - 2 * nu))  # Lame parameters
 
@@ -46,7 +47,7 @@ def substep():
         # Hardening coefficient: snow gets harder when compressed
         h = ti.max(0.1, ti.min(5, ti.exp(10 * (1.0 - Jp[p]))))
         if material[p] == 1:  # jelly, make it softer
-            h = 0.3
+            h = 0.7
         mu, la = mu_0 * h, lambda_0 * h
         if material[p] == 0:  # liquid
             mu = 0.0
@@ -114,12 +115,21 @@ def substep():
 def reset():
     group_size = n_particles // 2
     for i in range(n_particles):
-        x[i] = [
-            ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
-            ti.random() * 0.2 + 0.05 + 0.32 * (i // group_size)
-            # ti.random() * 0.7,
-            # ti.random() * 0.7
-        ]
+        if i // group_size == 1:
+            ran_r = ti.math.sqrt(ti.random()) * 0.5 + 0.5
+            ran_theta = ti.random() * math.pi
+            x_temp = ran_r * ti.math.cos(ran_theta)
+            y_temp = ran_r * ti.math.sin(ran_theta)
+            x[i] = [
+                # ti.random() * 0.2 + 0.3 + 0.10 * (i // group_size),
+                # ti.random() * 0.2 + 0.05 + 0.32 * (i // group_size)
+                x_temp * 0.2 + 0.3,
+                y_temp * 0.2
+                # ti.random() * 0.7,
+                # ti.random() * 0.7
+            ]
+        else:
+            x[i] = [ti.random() * 0.1 + 0.3 + 0.10, ti.random() * 0.1 + 0.3]
         material[i] = i // group_size  # 0: fluid 1: jelly 2: snow
         v[i] = [0, 0]
         F[i] = ti.Matrix([[1, 0], [0, 1]])
@@ -164,7 +174,7 @@ for frame in range(20000):
         x.to_numpy(),
         radius=1.2,
         # palette=[0x068587, 0xED553B, 0xEEEEF0],
-        palette=[0xEEEEF0, 0xED553B],
+        palette=[0xEEEEF0, 0x00FF00],
         palette_indices=material)
 
     # Change to gui.show(f'{frame:06d}.png') to write images to disk

@@ -26,6 +26,7 @@ class FigureType(Enum):
     Circle = 4
     Ellipse = 5
     Polygon = 6
+    BCurve = 7
     # Edit = 7
     # Del = 8
 
@@ -85,9 +86,11 @@ class Minidraw_controller(QWidget):
                     figure.start_y, figure.end_y) and pt_y >= min(
                         figure.start_y, figure.end_y)
         elif isinstance(figure, Circle):
-            radius = abs(figure.start_x - figure.end_x) / 2
+            radius = (figure.start_x - figure.end_x) / 2
             center_x = (figure.start_x + figure.end_x) / 2
-            center_y = figure.start_y + radius
+            center_y = figure.start_y - radius
+            radius = abs(radius)
+            # print(center_x, center_y, radius)
             return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
         else:
             points = figure.p_point_array
@@ -134,6 +137,8 @@ class Minidraw_controller(QWidget):
                 elif self.current_figure_type == FigureType.Polygon:
                     self.p_current_figure = Polygon(self.current_point)
                     self.is_drawing_polygon = True
+                # elif self.current_figure_type==FigureType.BCurve:
+
                 self.draw_status = True
         elif event.button() == Qt.RightButton:
             if self.is_drawing_polygon:
@@ -244,8 +249,6 @@ class Minidraw_controller(QWidget):
                     if matr_n[a] == MatterType['NoType'] or matr_n[
                             b] == MatterType['NoType']:
                         break
-                    elif matr_n[a] == MatterType['Fluid']:
-                        color = Qt.blue
                     elif matr_n[a] == MatterType['Jelly']:
                         color = QColor(0xED553B)
                     elif matr_n[a] == MatterType['Plastic']:
@@ -367,8 +370,8 @@ class Minidraw_controller(QWidget):
                 ptype = MatterType['Steel']
             elif figure_color == QColor(0xED553B):
                 ptype = MatterType['Jelly']
-            else:
-                ptype = MatterType['Fluid']
+            elif figure_color == Qt.green:
+                ptype = MatterType['HSteel']
 
             # p_points = p_figure.p_point_array
             if self.usingFEM:

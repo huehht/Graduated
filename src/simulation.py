@@ -214,9 +214,10 @@ class Simulations:
     # @ti.func
     def point_in_circle(self, figure: ti.template(), pt_x: float,
                         pt_y: float) -> bool:
-        radius = abs(figure.start_x - figure.end_x)
+        radius = (figure.start_x - figure.end_x) / 2
         center_x = (figure.start_x + figure.end_x) / 2
-        center_y = (figure.start_y + figure.end_y) / 2
+        center_y = (figure.start_y - radius)
+        radius = abs(radius)
         # print(pt_x, pt_y)
         return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
 
@@ -597,9 +598,10 @@ class FEM:
     # @ti.func
     def point_in_circle(self, figure: ti.template(), pt_x: float,
                         pt_y: float) -> bool:
-        radius = abs(figure.start_x - figure.end_x)
+        radius = (figure.start_x - figure.end_x) / 2
         center_x = (figure.start_x + figure.end_x) / 2
-        center_y = (figure.start_y + figure.end_y) / 2
+        center_y = (figure.start_y - radius)
+        radius = abs(radius)
         # print(pt_x, pt_y)
         return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
 

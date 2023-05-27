@@ -2,7 +2,7 @@ import taichi as ti
 import matplotlib.pyplot as plt
 import numpy as np
 
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.cpu)
 gui = ti.GUI('FEM99', res=512, background_color=0x112F41)
 
 N = 16
@@ -172,16 +172,16 @@ while gui.running:
     pos_n = pos.to_numpy()
     node_f2v = f2v.to_numpy()
     for i in range(NF):
-        # a, b, c = node_f2v[i][0], node_f2v[i][1], node_f2v[i][2]
-        # gui.triangle((pos_n[a][0], pos_n[a][1]), (pos_n[b][0], pos_n[b][1]),
-        #              (pos_n[c][0], pos_n[c][1]),
-        #              color=0x4FB99F)
-
-        for j in range(3):
-            a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
-            gui.line((pos_n[a][0], pos_n[a][1]), (pos_n[b][0], pos_n[b][1]),
-                     radius=1,
+        a, b, c = node_f2v[i][0], node_f2v[i][1], node_f2v[i][2]
+        gui.triangle((pos_n[a][0], pos_n[a][1]), (pos_n[b][0], pos_n[b][1]),
+                     (pos_n[c][0], pos_n[c][1]),
                      color=0x4FB99F)
+
+        # for j in range(3):
+        #     a, b = node_f2v[i][j], node_f2v[i][(j + 1) % 3]
+        #     gui.line((pos_n[a][0], pos_n[a][1]), (pos_n[b][0], pos_n[b][1]),
+        #              radius=1,
+        #              color=0x4FB99F)
     # gui.circles(pos.to_numpy(), radius=2, color=0xffaa33)
     # gui.circle(ball_pos, radius=ball_radius * 512, color=0x666666)
     gui.show()

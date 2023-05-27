@@ -115,8 +115,8 @@ class Minidraw(QMainWindow):
         self.controller.isDel = False
         self.controller.isEdit = False
 
-    def set_figure_tool_ellipse(self):
-        self.controller.current_figure_type = FigureType.Ellipse
+    def set_figure_tool_bcurve(self):
+        self.controller.current_figure_type = FigureType.BCurve
         self.controller.isAdding = True
         self.controller.isDel = False
         self.controller.isEdit = False
@@ -232,10 +232,10 @@ class Minidraw(QMainWindow):
         self.figure_toolbar.addAction(choose_rect_act)
 
         # button for triangle
-        # choose_tri_act = QAction(QIcon("resources/tri_icon.png"),
-        #                          "triangle tool", self)
-        # choose_tri_act.triggered.connect(self.set_figure_tool_tri)
-        # self.figure_toolbar.addAction(choose_tri_act)
+        # choose_bcurve_act = QAction(QIcon("resources/bcurve.png"),
+        #                             "Bezier Curve", self)
+        # choose_bcurve_act.triggered.connect(self.set_figure_tool_bcurve)
+        # self.figure_toolbar.addAction(choose_bcurve_act)
 
         # button for polygon
         # choose_poly_act = QAction(QIcon("resources/polygon_icon.png"),
