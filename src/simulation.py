@@ -39,12 +39,12 @@ class Simulations:
     def __init__(self, w, h) -> None:
         quality = 1  # Use a larger value for higher-res simulations
         self.n_grid = 128 * quality
-        self.n_part_grid = 8 * quality
-        self.n_particles = 8 * 8 * 50 * quality**2
+        self.n_part_grid = 32 * quality
+        self.n_particles = 32 * 32 * 50 * quality**2
         self.grid_particle_ratio = 50
         self.dx, self.inv_dx = 1 / self.n_grid, float(self.n_grid)
         # self.n_p2gs = self.n_particles / self.grid_particle_ratio
-        self.n_p2gs = 8 * 8 * quality**2
+        self.n_p2gs = 32 * 32 * quality**2
         self.dt = 1e-4 / quality
         self.p_vol, self.p_rho = (self.dx * 0.5)**2, 1
         self.p_mass = self.p_vol * self.p_rho

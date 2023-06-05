@@ -13,7 +13,7 @@ dt = 1e-4 / quality
 p_vol, p_rho = (dx * 0.5)**2, 1
 p_mass = p_vol * p_rho
 E, nu = 5e3, 0.2  # Young's modulus and Poisson's ratio
-global mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
+mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
     (1 + nu) * (1 - 2 * nu))  # Lame parameters
 
 x = ti.Vector.field(2, dtype=float, shape=n_particles)  # position
@@ -33,7 +33,9 @@ attractor_pos = ti.Vector.field(2, dtype=float, shape=())
 
 
 @ti.kernel
-def substep():
+def substep(E: ti.f32, nu: ti.f32):
+    mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
+        (1 + nu) * (1 - 2 * nu))  # Lame parameters
     for i, j in grid_m:
         grid_v[i, j] = [0, 0]
         grid_m[i, j] = 0
@@ -112,9 +114,8 @@ def substep():
 
 
 @ti.kernel
-def reset(E: ti.f32, nu: ti.f32):
-    mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
-        (1 + nu) * (1 - 2 * nu))  # Lame parameters
+def reset():
+
     group_size = n_particles // 2
     for i in range(n_particles):
         if i // group_size == 1:
@@ -145,25 +146,29 @@ print(
 gui = ti.GUI("Taichi MLS-MPM-change-materials",
              res=512,
              background_color=0x112F41)
-reset(5e3, 0.2)
+reset()
 gravity[None] = [0, -10]
 
 for frame in range(20000):
     # print(gravity[None])
     if gui.get_event(ti.GUI.PRESS):
         if gui.event.key == 'r':
-            reset(5e3, 0.2)
+            E, nu = 5e3, 0.2
+            reset()
             gravity[None] = [0, -10]
         elif gui.event.key == '1':
-            reset(5e3, 0.2)
+            E, nu = 5e3, 0.2
             color = 0xED553B
+            reset()
             gravity[None] = [0, -10]
         elif gui.event.key == '2':
-            reset(7e3, 0.2)
+            E, nu = 7e3, 0.2
             color = 0x00FF00
+            reset()
             gravity[None] = [0, -10]
         elif gui.event.key == '3':
-            reset(3e3, 0.1)
+            E, nu = 3e3, 0.1
+            reset()
             color = 0xFFFF00
             gravity[None] = [0, -10]
         elif gui.event.key in [ti.GUI.ESCAPE, ti.GUI.EXIT]:
@@ -187,7 +192,7 @@ for frame in range(20000):
     # if gui.is_pressed(ti.GUI.RMB):
     #     attractor_strength[None] = -1
     for s in range(int(2e-3 // dt)):
-        substep()
+        substep(E, nu)
     gui.circles(
         x.to_numpy(),
         radius=1.2,

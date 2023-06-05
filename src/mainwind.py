@@ -333,12 +333,12 @@ class Minidraw(QMainWindow):
         # action_reset_simul.triggered.connect(self.reset_simulation)
         # self.Simulation_toolbar.addAction(action_reset_simul)
 
-        # action_clear_simul = QAction(
-        #     QIcon(
-        #         "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/clear.png"
-        #     ), "clear simulation", self)
-        # action_clear_simul.triggered.connect(self.clear_simulation)
-        # self.Simulation_toolbar.addAction(action_clear_simul)
+        action_clear_simul = QAction(
+            QIcon(
+                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/clear.png"
+            ), "clear simulation", self)
+        action_clear_simul.triggered.connect(self.clear_simulation)
+        self.Simulation_toolbar.addAction(action_clear_simul)
 
         # def create_snow_type_toolbar(self):
         #     self.SnowType_toolbar = self.addToolBar("snow type toolbar")

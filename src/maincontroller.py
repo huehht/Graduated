@@ -611,18 +611,19 @@ class Minidraw_controller(QWidget):
         self.update()
 
     def clear_simulation(self):
-        self.is_simulating = False
-        self.figure_array.clear()
-        self.figure_array_backup.clear()
-        self.status_stack.clear()
-        self.del_figure.clear()
-        if self.usingFEM:
-            # self.fem_simulation.pos.clear()
-            del self.fem_simulation
-            self.fem_simulation = simulation.FEM(self.window_w, self.window_h)
-        elif self.usingMPM:
-            self.taichi_simulation.particles.clear()
-        self.update()
+        QCoreApplication.quit()
+        # self.is_simulating = False
+        # self.figure_array.clear()
+        # self.figure_array_backup.clear()
+        # self.status_stack.clear()
+        # self.del_figure.clear()
+        # if self.usingFEM:
+        #     # self.fem_simulation.pos.clear()
+        #     del self.fem_simulation
+        #     self.fem_simulation = simulation.FEM(self.window_w, self.window_h)
+        # elif self.usingMPM:
+        #     self.taichi_simulation.particles.clear()
+        # self.update()
 
     def undo(self):
         if self.status_stack:
