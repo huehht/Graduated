@@ -156,8 +156,8 @@ class Minidraw(QMainWindow):
         # create button for color
         button_black = QAction(
             QIcon(
-                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/steel.png"
-            ), "Steel", self)
+                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/notpe.png"
+            ), "Erase", self)
         button_black.triggered.connect(self.set_line_color_black)
         self.color_toolbar.addAction(button_black)
 
@@ -312,12 +312,12 @@ class Minidraw(QMainWindow):
         action_mesh_simul.triggered.connect(self.add_mesh_simu)
         self.Simulation_toolbar.addAction(action_mesh_simul)
 
-        action_pause_simul = QAction(
-            QIcon(
-                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/pause.png"
-            ), "pause simulation", self)
-        action_pause_simul.triggered.connect(self.pause_simulation)
-        self.Simulation_toolbar.addAction(action_pause_simul)
+        # action_pause_simul = QAction(
+        #     QIcon(
+        #         "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/pause.png"
+        #     ), "pause simulation", self)
+        # action_pause_simul.triggered.connect(self.pause_simulation)
+        # self.Simulation_toolbar.addAction(action_pause_simul)
 
         action_save_simul = QAction(
             QIcon(
@@ -326,19 +326,19 @@ class Minidraw(QMainWindow):
         action_save_simul.triggered.connect(self.save_scene)
         self.Simulation_toolbar.addAction(action_save_simul)
 
-        action_reset_simul = QAction(
-            QIcon(
-                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/reset.png"
-            ), "reset simulation", self)
-        action_reset_simul.triggered.connect(self.reset_simulation)
-        self.Simulation_toolbar.addAction(action_reset_simul)
+        # action_reset_simul = QAction(
+        #     QIcon(
+        #         "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/reset.png"
+        #     ), "reset simulation", self)
+        # action_reset_simul.triggered.connect(self.reset_simulation)
+        # self.Simulation_toolbar.addAction(action_reset_simul)
 
-        action_clear_simul = QAction(
-            QIcon(
-                "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/clear.png"
-            ), "clear simulation", self)
-        action_clear_simul.triggered.connect(self.clear_simulation)
-        self.Simulation_toolbar.addAction(action_clear_simul)
+        # action_clear_simul = QAction(
+        #     QIcon(
+        #         "/Users/hht/Desktop/hht_s/coding/FEMsimulate/src/resources/clear.png"
+        #     ), "clear simulation", self)
+        # action_clear_simul.triggered.connect(self.clear_simulation)
+        # self.Simulation_toolbar.addAction(action_clear_simul)
 
         # def create_snow_type_toolbar(self):
         #     self.SnowType_toolbar = self.addToolBar("snow type toolbar")
@@ -414,7 +414,10 @@ class Minidraw(QMainWindow):
             self.controller.add_mesh = True
 
     def pause_simulation(self):
-        self.controller.is_simulating = False
+        if self.controller.is_simulating == True:
+            self.controller.is_simulating = False
+        else:
+            self.controller.is_simulating = True
 
     def reset_simulation(self):
         self.controller.is_simulating = False

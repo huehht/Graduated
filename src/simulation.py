@@ -100,8 +100,8 @@ class Simulations:
                 ti.random() / self.n_part_grid +
                 ((i // group_size) // self.n_part_grid) / self.n_part_grid
             ]
-            # self.material[i] = MatterType['NoType']
-            self.material[i] = MatterType['Fluid']
+            self.material[i] = MatterType['NoType']
+            # self.material[i] = MatterType['Fluid']
             self.v[i] = [0, 0]
             self.F[i] = ti.Matrix([[1, 0], [0, 1]])
             self.Jp[i] = 1
@@ -216,7 +216,7 @@ class Simulations:
                         pt_y: float) -> bool:
         radius = (figure.start_x - figure.end_x) / 2
         center_x = (figure.start_x + figure.end_x) / 2
-        center_y = (figure.start_y - radius)
+        center_y = (figure.start_y + figure.end_y) / 2
         radius = abs(radius)
         # print(pt_x, pt_y)
         return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
@@ -245,7 +245,7 @@ class Simulations:
                     figure.start_y, figure.end_y) and pt_y >= min(
                         figure.start_y, figure.end_y)
         elif isinstance(figure, Circle):
-            radius = abs(figure.start_x - figure.end_x)
+            radius = abs(figure.start_x - figure.end_x) / 2
             center_x = (figure.start_x + figure.end_x) / 2
             center_y = (figure.start_y + figure.end_y) / 2
             return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
@@ -570,7 +570,7 @@ class FEM:
                     figure.start_y, figure.end_y) and pt_y >= min(
                         figure.start_y, figure.end_y)
         elif isinstance(figure, Circle):
-            radius = abs(figure.start_x - figure.end_x)
+            radius = abs(figure.start_x - figure.end_x) / 2
             center_x = (figure.start_x + figure.end_x) / 2
             center_y = (figure.start_y + figure.end_y) / 2
             return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
@@ -600,7 +600,7 @@ class FEM:
                         pt_y: float) -> bool:
         radius = (figure.start_x - figure.end_x) / 2
         center_x = (figure.start_x + figure.end_x) / 2
-        center_y = (figure.start_y - radius)
+        center_y = (figure.start_y + figure.end_y) / 2
         radius = abs(radius)
         # print(pt_x, pt_y)
         return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2

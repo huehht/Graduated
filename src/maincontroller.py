@@ -88,7 +88,7 @@ class Minidraw_controller(QWidget):
         elif isinstance(figure, Circle):
             radius = (figure.start_x - figure.end_x) / 2
             center_x = (figure.start_x + figure.end_x) / 2
-            center_y = figure.start_y - radius
+            center_y = (figure.start_y + figure.end_y) / 2
             radius = abs(radius)
             # print(center_x, center_y, radius)
             return radius**2 >= (center_x - pt_x)**2 + (center_y - pt_y)**2
@@ -257,8 +257,8 @@ class Minidraw_controller(QWidget):
                         color = Qt.green
                     elif matr_n[a] == MatterType['Steel']:
                         color = Qt.white
-                    # if self.add_mesh:
-                    if True:
+                    if self.add_mesh:
+                        # if True:
                         painter.setPen(QPen(color, 1))
                         painter.setBrush(QBrush(color))
                         painter.drawLine(pos_n[a][0] * self.window_w,
@@ -266,7 +266,30 @@ class Minidraw_controller(QWidget):
                                          pos_n[b][0] * self.window_w,
                                          pos_n[b][1] * self.window_h)
                 # print(self.add_mesh)
-                # if not self.add_mesh:
+                if not self.add_mesh:
+                    a, b, c = node_f2v[i][0], node_f2v[i][1], node_f2v[i][2]
+                    if matr_n[a] == MatterType['NoType'] or matr_n[
+                            b] == MatterType['NoType'] or matr_n[
+                                c] == MatterType['NoType']:
+                        continue
+                    elif matr_n[a] == MatterType['Jelly']:
+                        color = QColor(0xED553B)
+                    elif matr_n[a] == MatterType['Plastic']:
+                        color = Qt.black
+                    elif matr_n[a] == MatterType['HSteel']:
+                        color = Qt.green
+                    elif matr_n[a] == MatterType['Steel']:
+                        color = Qt.white
+                    painter.setBrush(QBrush(color))
+                    painter.drawPolygon(
+                        QPolygonF([
+                            QPointF(pos_n[a][0] * self.window_w,
+                                    pos_n[a][1] * self.window_h),
+                            QPointF(pos_n[b][0] * self.window_w,
+                                    pos_n[b][1] * self.window_h),
+                            QPointF(pos_n[c][0] * self.window_w,
+                                    pos_n[c][1] * self.window_h)
+                        ]))
                 if False:
                     a, b, c = node_f2v[i][0], node_f2v[i][1], node_f2v[i][2]
                     if matr_n[a] == MatterType['NoType'] or matr_n[
@@ -330,12 +353,14 @@ class Minidraw_controller(QWidget):
                 bottom = min(p_figure.start_y, p_figure.end_y, bottom)
                 left = min(p_figure.start_x, p_figure.end_x, left)
                 right = max(p_figure.start_x, p_figure.end_x, right)
+                # print(p_figure.end_y)
             else:
                 csl = CScanLine(p_figure)
                 top = max(csl.top, top)
                 bottom = min(csl.bottom, bottom)
                 left = min(csl.left, left)
                 right = max(csl.right, right)
+        # print(top, bottom, left, right)
         self.fem_simulation.init_pos(top, bottom, left, right)
 
     def add_objects(self):
@@ -365,7 +390,7 @@ class Minidraw_controller(QWidget):
             #  blue: fluid
             figure_color = p_figure.get_color()
             if figure_color == Qt.black:
-                ptype = MatterType['Plastic']
+                ptype = MatterType['NoType']
             elif figure_color == Qt.white:
                 ptype = MatterType['Steel']
             elif figure_color == QColor(0xED553B):
@@ -568,12 +593,18 @@ class Minidraw_controller(QWidget):
             # 2. start simulation
 
             while True:
-                self.editing_simulate()
+                if self.is_simulating:
+                    self.editing_simulate()
 
     def reset_simulation(self):
         self.is_simulating = False
         self.figure_array.clear()
-        self.taichi_simulation.particles.clear()
+        if self.usingFEM:
+            # self.fem_simulation.pos.clear()
+            del self.fem_simulation
+            self.fem_simulation = simulation.FEM(self.window_w, self.window_h)
+        elif self.usingMPM:
+            self.taichi_simulation.particles.clear()
 
         self.figure_array = self.figure_array_backup
         self.figure_array_backup.clear()  # clear backup figure array here
@@ -585,7 +616,12 @@ class Minidraw_controller(QWidget):
         self.figure_array_backup.clear()
         self.status_stack.clear()
         self.del_figure.clear()
-        self.taichi_simulation.particles.clear()
+        if self.usingFEM:
+            # self.fem_simulation.pos.clear()
+            del self.fem_simulation
+            self.fem_simulation = simulation.FEM(self.window_w, self.window_h)
+        elif self.usingMPM:
+            self.taichi_simulation.particles.clear()
         self.update()
 
     def undo(self):

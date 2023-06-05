@@ -5,14 +5,14 @@ import math
 from PyQt5.QtCore import QTimer
 
 ti.init(arch=ti.gpu)  # Try to run on GPU
-
+color = 0xED553B
 quality = 1  # Use a larger value for higher-res simulations
 n_particles, n_grid = 9000 * quality**2, 128 * quality
 dx, inv_dx = 1 / n_grid, float(n_grid)
 dt = 1e-4 / quality
 p_vol, p_rho = (dx * 0.5)**2, 1
 p_mass = p_vol * p_rho
-E, nu = 7e3, 0.2  # Young's modulus and Poisson's ratio
+E, nu = 5e3, 0.2  # Young's modulus and Poisson's ratio
 mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
     (1 + nu) * (1 - 2 * nu))  # Lame parameters
 
@@ -112,7 +112,9 @@ def substep():
 
 
 @ti.kernel
-def reset():
+def reset(E: ti.f32, nu: ti.f32):
+    mu_0, lambda_0 = E / (2 * (1 + nu)), E * nu / (
+        (1 + nu) * (1 - 2 * nu))  # Lame parameters
     group_size = n_particles // 2
     for i in range(n_particles):
         if i // group_size == 1:
@@ -140,14 +142,25 @@ def reset():
 print(
     "[Hint] Use WSAD/arrow keys to control gravity. Use left/right mouse buttons to attract/repel. Press R to reset."
 )
-gui = ti.GUI("Taichi MLS-MPM-128", res=512, background_color=0x112F41)
-reset()
+gui = ti.GUI("Taichi MLS-MPM-change-materials",
+             res=512,
+             background_color=0x112F41)
+reset(5e3, 0.2)
 gravity[None] = [0, -10]
 
 for frame in range(20000):
     if gui.get_event(ti.GUI.PRESS):
         if gui.event.key == 'r':
-            reset()
+            reset(5e3, 0.2)
+        elif gui.event.key == '1':
+            reset(5e3, 0.2)
+            color = 0xED553B
+        elif gui.event.key == '2':
+            reset(7e3, 0.2)
+            color = 0x00FF00
+        elif gui.event.key == '3':
+            reset(3e3, 0.1)
+            color = 0xFFFF00
         elif gui.event.key in [ti.GUI.ESCAPE, ti.GUI.EXIT]:
             break
     if gui.event is not None:
@@ -160,21 +173,22 @@ for frame in range(20000):
         gravity[None][1] = 1
     if gui.is_pressed(ti.GUI.DOWN, 's'):
         gravity[None][1] = -1
-    mouse = gui.get_cursor_pos()
+    # mouse = gui.get_cursor_pos()
     # gui.circle((mouse[0], mouse[1]), color=0x336699, radius=15)
     # attractor_pos[None] = [mouse[0], mouse[1]]
     attractor_strength[None] = 0
-    if gui.is_pressed(ti.GUI.LMB):
-        attractor_strength[None] = 1
-    if gui.is_pressed(ti.GUI.RMB):
-        attractor_strength[None] = -1
+    # if gui.is_pressed(ti.GUI.LMB):
+    #     attractor_strength[None] = 1
+    # if gui.is_pressed(ti.GUI.RMB):
+    #     attractor_strength[None] = -1
     for s in range(int(2e-3 // dt)):
         substep()
+        # print(1)
     gui.circles(
         x.to_numpy(),
         radius=1.2,
         # palette=[0x068587, 0xED553B, 0xEEEEF0],
-        palette=[0xEEEEF0, 0x00FF00],
+        palette=[0xEEEEF0, color],
         palette_indices=material)
 
     # Change to gui.show(f'{frame:06d}.png') to write images to disk
